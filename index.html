@@ -1,0 +1,2081 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>单词杀手 Word Slayer</title>
+<style>
+/* ===== Reset & Base ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #0a0a1a;
+  color: #e0e0e0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  display: flex; align-items: center; justify-content: center;
+}
+#app {
+  width: 100%; max-width: 480px; height: 100vh; height: 100dvh;
+  position: relative; overflow: hidden;
+  background: linear-gradient(180deg, #0d0d2b 0%, #1a0a2e 50%, #0d0d2b 100%);
+}
+.screen {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  transition: opacity 0.3s, transform 0.3s; padding: 20px;
+}
+.screen.hidden { opacity: 0; transform: scale(0.95); pointer-events: none; }
+
+/* ===== Particles Canvas ===== */
+#particles {
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+}
+
+/* ===== Menu Screen ===== */
+#menu-screen { z-index: 10; }
+.menu-title {
+  font-size: 48px; font-weight: 900; letter-spacing: 2px;
+  background: linear-gradient(135deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 4px; text-align: center;
+  text-shadow: none;
+  position: relative;
+}
+.menu-subtitle { font-size: 16px; color: #888; margin-bottom: 40px; letter-spacing: 4px; text-align: center; }
+.menu-section { width: 100%; max-width: 320px; margin-bottom: 24px; }
+.menu-label { font-size: 13px; color: #888; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 2px; text-align: center; }
+.menu-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.menu-cards.col3 { grid-template-columns: 1fr 1fr 1fr; }
+.menu-card {
+  background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 14px 10px; text-align: center; cursor: pointer;
+  transition: all 0.2s;
+}
+.menu-card:active { transform: scale(0.95); }
+.menu-card.selected { border-color: #ffd93d; background: rgba(255,217,61,0.1); box-shadow: 0 0 20px rgba(255,217,61,0.15); }
+.menu-card-icon { font-size: 28px; margin-bottom: 4px; }
+.menu-card-title { font-size: 14px; font-weight: 700; }
+.menu-card-desc { font-size: 11px; color: #888; margin-top: 2px; }
+
+.btn-start {
+  width: 100%; max-width: 320px; padding: 16px; border: none; border-radius: 16px;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+  color: #fff; font-size: 20px; font-weight: 800; letter-spacing: 2px;
+  cursor: pointer; transition: all 0.2s; margin-top: 16px;
+  box-shadow: 0 4px 24px rgba(238,90,36,0.4);
+}
+.btn-start:active { transform: scale(0.96); opacity: 0.9; }
+
+.btn-clear-wrong {
+  background: rgba(255,107,107,0.15); border: 1px solid rgba(255,107,107,0.3);
+  color: #ff6b6b; font-size: 11px; padding: 6px 14px; border-radius: 8px;
+  cursor: pointer; transition: all 0.2s;
+}
+.btn-clear-wrong:active { background: rgba(255,107,107,0.3); }
+
+.stats-row { display: flex; gap: 16px; margin-top: 20px; font-size: 12px; color: #666; }
+.stats-row span { text-align: center; }
+
+/* ===== Game Screen ===== */
+#game-screen { z-index: 10; padding: 0; justify-content: flex-start; }
+
+/* HUD */
+.hud {
+  width: 100%; padding: 12px 16px; display: flex; align-items: center;
+  justify-content: space-between; z-index: 5;
+  background: rgba(0,0,0,0.3); backdrop-filter: blur(10px);
+}
+.hud-item { text-align: center; }
+.hud-item .val { font-size: 22px; font-weight: 800; }
+.hud-item .lbl { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+.hp-hearts { display: flex; gap: 3px; }
+.hp-hearts .heart { font-size: 20px; transition: all 0.3s; }
+.hp-hearts .heart.lost { opacity: 0.2; transform: scale(0.7); filter: grayscale(1); }
+
+/* Combo pop */
+.combo-pop {
+  position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
+  font-size: 28px; font-weight: 900; color: #ffd93d;
+  opacity: 0; pointer-events: none; z-index: 20;
+  text-shadow: 0 0 20px rgba(255,217,61,0.8);
+  transition: none;
+}
+.combo-pop.show { animation: comboBurst 0.8s ease-out forwards; }
+@keyframes comboBurst {
+  0% { opacity: 1; transform: translateX(-50%) scale(0.5); }
+  30% { opacity: 1; transform: translateX(-50%) scale(1.3); }
+  100% { opacity: 0; transform: translateX(-50%) scale(1) translateY(-30px); }
+}
+
+/* Enemy area */
+.enemy-area {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 100%; z-index: 5; padding: 20px;
+}
+.enemy-sprite {
+  font-size: 80px; transition: transform 0.15s; position: relative;
+}
+.enemy-sprite.hit { animation: enemyHit 0.4s ease-out; }
+@keyframes enemyHit {
+  0% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+  100% { transform: translateX(0); }
+}
+.enemy-name { font-size: 12px; color: #ff6b6b; margin-top: 4px; letter-spacing: 1px; }
+.enemy-hp-bar {
+  width: 200px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px;
+  margin-top: 8px; overflow: hidden;
+}
+.enemy-hp-fill {
+  height: 100%; background: linear-gradient(90deg, #ff6b6b, #ffd93d);
+  border-radius: 3px; transition: width 0.3s;
+}
+
+/* Word card */
+.word-card {
+  background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.15);
+  border-radius: 16px; padding: 16px 28px; text-align: center; margin-bottom: 8px;
+  backdrop-filter: blur(10px);
+}
+.word-card .english { font-size: 36px; font-weight: 900; color: #fff; letter-spacing: 2px; }
+.word-card .phonetic { font-size: 13px; color: #888; margin-top: 2px; }
+.word-card .hint { font-size: 12px; color: #666; margin-top: 4px; }
+
+/* Timer bar */
+.timer-bar-wrap { width: 80%; max-width: 300px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; margin-bottom: 16px; overflow: hidden; }
+.timer-bar { height: 100%; background: #4d96ff; border-radius: 2px; transition: width 0.1s linear; }
+.timer-bar.danger { background: #ff6b6b; }
+
+/* Options */
+.options-area {
+  width: 100%; padding: 0 16px 20px; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 5;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+.opt-btn {
+  padding: 16px 12px; border: 2px solid rgba(255,255,255,0.15);
+  border-radius: 14px; background: rgba(255,255,255,0.05);
+  color: #e0e0e0; font-size: 16px; font-weight: 600; cursor: pointer;
+  transition: all 0.15s; text-align: center; word-break: break-all;
+  min-height: 52px; display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(5px);
+}
+.opt-btn:active { transform: scale(0.95); }
+.opt-btn.correct {
+  border-color: #6bcb77; background: rgba(107,203,119,0.2);
+  animation: pulseGreen 0.4s;
+}
+.opt-btn.wrong {
+  border-color: #ff6b6b; background: rgba(255,107,107,0.2);
+  animation: shake 0.4s;
+}
+@keyframes pulseGreen {
+  0%, 100% { box-shadow: 0 0 0 rgba(107,203,119,0); }
+  50% { box-shadow: 0 0 30px rgba(107,203,119,0.5); }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+/* ===== Screen Shake ===== */
+.screen-shake { animation: screenShake 0.4s ease-out; }
+@keyframes screenShake {
+  0%, 100% { transform: translate(0); }
+  10% { transform: translate(-4px, 2px); }
+  30% { transform: translate(4px, -1px); }
+  50% { transform: translate(-2px, -2px); }
+  70% { transform: translate(3px, 1px); }
+  90% { transform: translate(-1px, -1px); }
+}
+
+/* ===== Result overlay ===== */
+.result-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.result-card {
+  background: #1a1a3e; border: 2px solid rgba(255,255,255,0.15);
+  border-radius: 20px; padding: 40px 28px; max-width: 360px; width: 90%;
+  text-align: center;
+}
+.result-card h2 { font-size: 32px; margin-bottom: 8px; }
+.result-card .big-num { font-size: 56px; font-weight: 900; color: #ffd93d; }
+.result-card .stat-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+  margin: 24px 0;
+}
+.result-card .stat-grid .stat-item .stat-val { font-size: 24px; font-weight: 800; }
+.result-card .stat-grid .stat-item .stat-lbl { font-size: 11px; color: #888; }
+.btn-row { display: flex; gap: 10px; }
+.btn-row button {
+  flex: 1; padding: 12px; border-radius: 12px; border: none;
+  font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+}
+.btn-retry { background: #4d96ff; color: #fff; }
+.btn-home { background: rgba(255,255,255,0.1); color: #ccc; }
+.btn-row button:active { transform: scale(0.95); }
+
+/* Word review */
+.word-review { max-height: 200px; overflow-y: auto; margin: 12px 0; text-align: left; font-size: 13px; }
+.word-review .wr-item {
+  display: flex; justify-content: space-between; padding: 6px 8px;
+  border-radius: 6px; margin-bottom: 4px;
+  background: rgba(255,255,255,0.03);
+}
+.word-review .wr-item.wrong-word { background: rgba(255,107,107,0.1); }
+.word-review .wr-en { font-weight: 700; color: #ccc; }
+.word-review .wr-zh { color: #888; }
+
+/* Boss alert */
+.boss-alert {
+  position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%);
+  font-size: 40px; font-weight: 900; color: #ff6b6b; z-index: 25;
+  pointer-events: none; opacity: 0;
+  text-shadow: 0 0 30px rgba(255,107,107,0.8);
+}
+.boss-alert.show { animation: bossIn 1.5s ease-out forwards; }
+@keyframes bossIn {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(2); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 360px) {
+  .menu-title { font-size: 36px; }
+  .word-card .english { font-size: 28px; }
+  .opt-btn { font-size: 14px; padding: 14px 8px; }
+  .options-area { gap: 8px; padding: 0 12px 16px; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="particles"></canvas>
+
+  <!-- Menu Screen -->
+  <div id="menu-screen" class="screen">
+    <div class="menu-title">单 词 杀 手</div>
+    <div class="menu-subtitle">WORD SLAYER</div>
+
+    <div class="menu-section">
+      <div class="menu-label">🎯 游戏模式</div>
+      <div class="menu-cards col3" id="mode-cards">
+        <div class="menu-card selected" data-mode="en2zh">
+          <div class="menu-card-icon">🔤</div>
+          <div class="menu-card-title">看英选中</div>
+          <div class="menu-card-desc">看英文，选中文</div>
+        </div>
+        <div class="menu-card" data-mode="zh2en">
+          <div class="menu-card-icon">🀄</div>
+          <div class="menu-card-title">看中选英</div>
+          <div class="menu-card-desc">看中文，选英文</div>
+        </div>
+        <div class="menu-card" data-mode="review" id="review-card">
+          <div class="menu-card-icon">📝</div>
+          <div class="menu-card-title">错题复习</div>
+          <div class="menu-card-desc">0 个待复习</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="menu-section" id="diff-section">
+      <div class="menu-label">📚 词库难度</div>
+      <div class="menu-cards col3" id="diff-cards">
+        <div class="menu-card selected" data-diff="easy">
+          <div class="menu-card-icon">🌱</div>
+          <div class="menu-card-title">初一上</div>
+          <div class="menu-card-desc">基础词汇</div>
+        </div>
+        <div class="menu-card" data-diff="medium">
+          <div class="menu-card-icon">🌿</div>
+          <div class="menu-card-title">初一下</div>
+          <div class="menu-card-desc">进阶词汇</div>
+        </div>
+        <div class="menu-card" data-diff="hard">
+          <div class="menu-card-icon">🌳</div>
+          <div class="menu-card-title">初二上</div>
+          <div class="menu-card-desc">预习词汇</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-start" id="btn-start" onclick="startGame()">
+      ⚔️ 开始战斗
+    </button>
+    <div class="stats-row">
+      <span>🏆 最高分: <b id="menu-best">0</b></span>
+      <span>📝 已掌握: <b id="menu-mastered">0</b></span>
+      <span>📝 错题本: <b id="menu-wrong-count">0</b></span>
+    </div>
+    <div class="stats-row" style="margin-top:4px;">
+      <button class="btn-clear-wrong" id="btn-clear-wrong" onclick="clearWrongBookAndUpdate()">
+        🗑 清空错题本
+      </button>
+    </div>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="game-screen" class="screen hidden">
+    <div class="combo-pop" id="combo-pop"></div>
+    <div class="boss-alert" id="boss-alert">⚠️ BOSS ⚠️</div>
+    <div class="hud">
+      <div class="hp-hearts" id="hp-hearts"></div>
+      <div class="hud-item">
+        <div class="val" id="hud-score">0</div>
+        <div class="lbl">分数</div>
+      </div>
+      <div class="hud-item">
+        <div class="val" id="hud-combo">x1</div>
+        <div class="lbl">连击</div>
+      </div>
+      <div class="hud-item">
+        <div class="val" id="hud-wave">1</div>
+        <div class="lbl">关卡</div>
+      </div>
+    </div>
+    <div class="enemy-area">
+      <div class="enemy-sprite" id="enemy-sprite">👾</div>
+      <div class="enemy-name" id="enemy-name">小单词怪</div>
+      <div class="enemy-hp-bar"><div class="enemy-hp-fill" id="enemy-hp-fill" style="width:100%"></div></div>
+      <div class="word-card" style="margin-top:20px;">
+        <div class="english" id="word-display">apple</div>
+        <div class="phonetic" id="phonetic-display"></div>
+        <div class="hint" id="word-hint"></div>
+      </div>
+      <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar"></div></div>
+    </div>
+    <div class="options-area" id="options-area"></div>
+  </div>
+</div>
+
+<script>
+// ==================== WORD DATA ====================
+// Words sourced from PEP (人教版) 2024 edition textbooks
+// Format: { en: 'word', zh: '中文释义', hint: '分类/主题' }
+// To add custom words, just follow the same format below.
+const WORD_DATA = {
+  easy: [ // 初一上 — Starter Units 1-3 + Units 1-7
+    // === Starter Unit 1: Hello! ===
+    { en: 'unit', zh: '单元', hint: '学校' },
+    { en: 'greet', zh: '问候', hint: '交流' },
+    { en: 'each', zh: '每个', hint: '代词' },
+    { en: 'everyone', zh: '每人', hint: '代词' },
+    { en: 'start', zh: '开始', hint: '动作' },
+    { en: 'conversation', zh: '谈话', hint: '交流' },
+    { en: 'spell', zh: '拼写', hint: '学习' },
+    { en: 'bell', zh: '铃声', hint: '学校' },
+    // === Starter Unit 2: Keep Tidy ===
+    { en: 'bottle', zh: '瓶子', hint: '物品' },
+    { en: 'eraser', zh: '橡皮', hint: '文具' },
+    { en: 'key', zh: '钥匙', hint: '物品' },
+    { en: 'thing', zh: '东西', hint: '物品' },
+    { en: 'need', zh: '需要', hint: '动作' },
+    // === Starter Unit 3: Welcome! ===
+    { en: 'fun', zh: '乐趣', hint: '情感' },
+    { en: 'yard', zh: '院子', hint: '场所' },
+    { en: 'carrot', zh: '胡萝卜', hint: '食物' },
+    { en: 'goose', zh: '鹅', hint: '动物' },
+    { en: 'count', zh: '数数', hint: '数学' },
+    { en: 'another', zh: '另一个', hint: '代词' },
+    // === Unit 1: You and Me ===
+    { en: 'country', zh: '国家', hint: '地理' },
+    { en: 'same', zh: '相同的', hint: '形容词' },
+    { en: 'both', zh: '两者都', hint: '代词' },
+    { en: 'band', zh: '乐队', hint: '音乐' },
+    { en: 'drum', zh: '鼓', hint: '音乐' },
+    { en: 'guitar', zh: '吉他', hint: '音乐' },
+    { en: 'violin', zh: '小提琴', hint: '音乐' },
+    { en: 'chess', zh: '国际象棋', hint: '活动' },
+    { en: 'information', zh: '信息', hint: '科技' },
+    { en: 'hobby', zh: '爱好', hint: '生活' },
+    { en: 'activity', zh: '活动', hint: '生活' },
+    // === Unit 2: We're Family ===
+    { en: 'family', zh: '家庭', hint: '家人' },
+    { en: 'mother', zh: '母亲', hint: '家人' },
+    { en: 'father', zh: '父亲', hint: '家人' },
+    { en: 'sister', zh: '姐妹', hint: '家人' },
+    { en: 'brother', zh: '兄弟', hint: '家人' },
+    { en: 'grandmother', zh: '奶奶', hint: '家人' },
+    { en: 'grandfather', zh: '爷爷', hint: '家人' },
+    { en: 'parent', zh: '父母', hint: '家人' },
+    { en: 'uncle', zh: '叔叔', hint: '家人' },
+    { en: 'aunt', zh: '阿姨', hint: '家人' },
+    { en: 'cousin', zh: '表亲', hint: '家人' },
+    { en: 'daughter', zh: '女儿', hint: '家人' },
+    { en: 'son', zh: '儿子', hint: '家人' },
+    { en: 'husband', zh: '丈夫', hint: '家人' },
+    { en: 'wife', zh: '妻子', hint: '家人' },
+    // === Unit 3: My School ===
+    { en: 'school', zh: '学校', hint: '场所' },
+    { en: 'classroom', zh: '教室', hint: '学校' },
+    { en: 'teacher', zh: '老师', hint: '职业' },
+    { en: 'student', zh: '学生', hint: '身份' },
+    { en: 'classmate', zh: '同学', hint: '身份' },
+    { en: 'library', zh: '图书馆', hint: '学校' },
+    { en: 'building', zh: '建筑', hint: '学校' },
+    { en: 'office', zh: '办公室', hint: '学校' },
+    { en: 'playground', zh: '操场', hint: '学校' },
+    { en: 'subject', zh: '学科', hint: '学习' },
+    { en: 'science', zh: '科学', hint: '学科' },
+    { en: 'history', zh: '历史', hint: '学科' },
+    { en: 'geography', zh: '地理', hint: '学科' },
+    { en: 'biology', zh: '生物', hint: '学科' },
+    { en: 'physics', zh: '物理', hint: '学科' },
+    { en: 'chemistry', zh: '化学', hint: '学科' },
+    // === Unit 4: My Favourite Subject ===
+    { en: 'favourite', zh: '最喜欢的', hint: '形容词' },
+    { en: 'Chinese', zh: '语文', hint: '学科' },
+    { en: 'math', zh: '数学', hint: '学科' },
+    { en: 'English', zh: '英语', hint: '学科' },
+    { en: 'music', zh: '音乐', hint: '学科' },
+    { en: 'art', zh: '美术', hint: '学科' },
+    { en: 'reason', zh: '原因', hint: '抽象' },
+    { en: 'remember', zh: '记住', hint: '学习' },
+    { en: 'useful', zh: '有用的', hint: '形容词' },
+    { en: 'exciting', zh: '令人兴奋的', hint: '形容词' },
+    // === Unit 5: Fun Clubs ===
+    { en: 'club', zh: '俱乐部', hint: '活动' },
+    { en: 'join', zh: '加入', hint: '动作' },
+    { en: 'choose', zh: '选择', hint: '动作' },
+    { en: 'drama', zh: '戏剧', hint: '艺术' },
+    { en: 'feeling', zh: '感觉', hint: '情感' },
+    { en: 'news', zh: '新闻', hint: '媒体' },
+    { en: 'musical', zh: '音乐的', hint: '艺术' },
+    { en: 'instrument', zh: '乐器', hint: '音乐' },
+    { en: 'paint', zh: '绘画', hint: '艺术' },
+    { en: 'climb', zh: '攀登', hint: '动作' },
+    { en: 'nature', zh: '自然', hint: '环境' },
+    { en: 'collect', zh: '收集', hint: '爱好' },
+    { en: 'insect', zh: '昆虫', hint: '生物' },
+    { en: 'wildlife', zh: '野生动物', hint: '生物' },
+    // === Unit 6: A Day in the Life ===
+    { en: 'routine', zh: '日常', hint: '生活' },
+    { en: 'early', zh: '早的', hint: '时间' },
+    { en: 'breakfast', zh: '早餐', hint: '食物' },
+    { en: 'lunch', zh: '午餐', hint: '食物' },
+    { en: 'dinner', zh: '晚餐', hint: '食物' },
+    { en: 'shower', zh: '淋浴', hint: '生活' },
+    { en: 'brush', zh: '刷', hint: '动作' },
+    { en: 'tooth', zh: '牙齿', hint: '身体' },
+    { en: 'usually', zh: '通常', hint: '副词' },
+    { en: 'never', zh: '从不', hint: '副词' },
+    { en: 'always', zh: '总是', hint: '副词' },
+    { en: 'sometimes', zh: '有时', hint: '副词' },
+    { en: 'daily', zh: '每日的', hint: '时间' },
+    { en: 'restaurant', zh: '餐厅', hint: '场所' },
+    { en: 'housework', zh: '家务', hint: '生活' },
+    // === Unit 7: Happy Birthday ===
+    { en: 'birthday', zh: '生日', hint: '节日' },
+    { en: 'celebrate', zh: '庆祝', hint: '动作' },
+    { en: 'present', zh: '礼物', hint: '物品' },
+    { en: 'surprise', zh: '惊喜', hint: '情感' },
+    { en: 'cake', zh: '蛋糕', hint: '食物' },
+    { en: 'candle', zh: '蜡烛', hint: '物品' },
+    { en: 'balloon', zh: '气球', hint: '物品' },
+    { en: 'date', zh: '日期', hint: '时间' },
+    { en: 'month', zh: '月份', hint: '时间' },
+    { en: 'January', zh: '一月', hint: '月份' },
+    { en: 'February', zh: '二月', hint: '月份' },
+    { en: 'March', zh: '三月', hint: '月份' },
+    { en: 'April', zh: '四月', hint: '月份' },
+    { en: 'May', zh: '五月', hint: '月份' },
+    { en: 'June', zh: '六月', hint: '月份' },
+    { en: 'July', zh: '七月', hint: '月份' },
+    { en: 'August', zh: '八月', hint: '月份' },
+    { en: 'September', zh: '九月', hint: '月份' },
+    { en: 'October', zh: '十月', hint: '月份' },
+    { en: 'November', zh: '十一月', hint: '月份' },
+    { en: 'December', zh: '十二月', hint: '月份' },
+    // === Basic Vocabulary ===
+    { en: 'name', zh: '名字', hint: '个人信息' },
+    { en: 'friend', zh: '朋友', hint: '人际关系' },
+    { en: 'love', zh: '爱', hint: '情感' },
+    { en: 'happy', zh: '快乐的', hint: '情绪' },
+    { en: 'sad', zh: '伤心的', hint: '情绪' },
+    { en: 'angry', zh: '生气的', hint: '情绪' },
+    { en: 'tired', zh: '累的', hint: '状态' },
+    { en: 'hungry', zh: '饿的', hint: '状态' },
+    { en: 'thirsty', zh: '渴的', hint: '状态' },
+    { en: 'good', zh: '好的', hint: '形容词' },
+    { en: 'bad', zh: '坏的', hint: '形容词' },
+    { en: 'big', zh: '大的', hint: '形容词' },
+    { en: 'small', zh: '小的', hint: '形容词' },
+    { en: 'new', zh: '新的', hint: '形容词' },
+    { en: 'old', zh: '旧的', hint: '形容词' },
+    { en: 'beautiful', zh: '美丽的', hint: '形容词' },
+    { en: 'colour', zh: '颜色', hint: '视觉' },
+    { en: 'red', zh: '红色', hint: '颜色' },
+    { en: 'blue', zh: '蓝色', hint: '颜色' },
+    { en: 'green', zh: '绿色', hint: '颜色' },
+    { en: 'yellow', zh: '黄色', hint: '颜色' },
+    { en: 'black', zh: '黑色', hint: '颜色' },
+    { en: 'white', zh: '白色', hint: '颜色' },
+    { en: 'orange', zh: '橙色', hint: '颜色' },
+    { en: 'apple', zh: '苹果', hint: '水果' },
+    { en: 'banana', zh: '香蕉', hint: '水果' },
+    { en: 'grape', zh: '葡萄', hint: '水果' },
+    { en: 'watermelon', zh: '西瓜', hint: '水果' },
+    { en: 'strawberry', zh: '草莓', hint: '水果' },
+    { en: 'pear', zh: '梨', hint: '水果' },
+    { en: 'rice', zh: '米饭', hint: '食物' },
+    { en: 'noodle', zh: '面条', hint: '食物' },
+    { en: 'bread', zh: '面包', hint: '食物' },
+    { en: 'milk', zh: '牛奶', hint: '饮品' },
+    { en: 'juice', zh: '果汁', hint: '饮品' },
+    { en: 'chicken', zh: '鸡肉', hint: '食物' },
+    { en: 'fish', zh: '鱼肉', hint: '食物' },
+    { en: 'vegetable', zh: '蔬菜', hint: '食物' },
+    { en: 'fruit', zh: '水果', hint: '食物' },
+    { en: 'cat', zh: '猫', hint: '动物' },
+    { en: 'dog', zh: '狗', hint: '动物' },
+    { en: 'duck', zh: '鸭子', hint: '动物' },
+    { en: 'rabbit', zh: '兔子', hint: '动物' },
+    { en: 'panda', zh: '熊猫', hint: '动物' },
+    { en: 'monkey', zh: '猴子', hint: '动物' },
+    { en: 'elephant', zh: '大象', hint: '动物' },
+    { en: 'tiger', zh: '老虎', hint: '动物' },
+    { en: 'lion', zh: '狮子', hint: '动物' },
+    { en: 'bear', zh: '熊', hint: '动物' },
+    { en: 'bird', zh: '鸟', hint: '动物' },
+    { en: 'horse', zh: '马', hint: '动物' },
+    { en: 'sheep', zh: '绵羊', hint: '动物' },
+    { en: 'cow', zh: '奶牛', hint: '动物' },
+    { en: 'read', zh: '阅读', hint: '学习' },
+    { en: 'write', zh: '写', hint: '学习' },
+    { en: 'listen', zh: '听', hint: '感官' },
+    { en: 'speak', zh: '说', hint: '交流' },
+    { en: 'sing', zh: '唱歌', hint: '娱乐' },
+    { en: 'dance', zh: '跳舞', hint: '娱乐' },
+    { en: 'draw', zh: '画画', hint: '艺术' },
+    { en: 'swim', zh: '游泳', hint: '运动' },
+    { en: 'fly', zh: '飞', hint: '动作' },
+    { en: 'climb', zh: '爬', hint: '动作' },
+    { en: 'open', zh: '打开', hint: '动作' },
+    { en: 'close', zh: '关上', hint: '动作' },
+    { en: 'sit', zh: '坐', hint: '动作' },
+    { en: 'stand', zh: '站', hint: '动作' },
+    { en: 'sleep', zh: '睡觉', hint: '动作' },
+    { en: 'wake', zh: '醒来', hint: '动作' },
+    { en: 'head', zh: '头', hint: '身体' },
+    { en: 'hand', zh: '手', hint: '身体' },
+    { en: 'eye', zh: '眼睛', hint: '身体' },
+    { en: 'ear', zh: '耳朵', hint: '身体' },
+    { en: 'mouth', zh: '嘴巴', hint: '身体' },
+    { en: 'nose', zh: '鼻子', hint: '身体' },
+    { en: 'foot', zh: '脚', hint: '身体' },
+    { en: 'arm', zh: '手臂', hint: '身体' },
+    { en: 'leg', zh: '腿', hint: '身体' },
+    { en: 'weather', zh: '天气', hint: '自然' },
+    { en: 'sunny', zh: '晴朗的', hint: '天气' },
+    { en: 'rainy', zh: '下雨的', hint: '天气' },
+    { en: 'cloudy', zh: '多云的', hint: '天气' },
+    { en: 'windy', zh: '有风的', hint: '天气' },
+    { en: 'snowy', zh: '下雪的', hint: '天气' },
+    { en: 'hot', zh: '热的', hint: '温度' },
+    { en: 'cold', zh: '冷的', hint: '温度' },
+    { en: 'warm', zh: '温暖的', hint: '温度' },
+    { en: 'cool', zh: '凉爽的', hint: '温度' },
+    { en: 'spring', zh: '春天', hint: '季节' },
+    { en: 'summer', zh: '夏天', hint: '季节' },
+    { en: 'autumn', zh: '秋天', hint: '季节' },
+    { en: 'winter', zh: '冬天', hint: '季节' },
+    { en: 'Monday', zh: '星期一', hint: '星期' },
+    { en: 'Tuesday', zh: '星期二', hint: '星期' },
+    { en: 'Wednesday', zh: '星期三', hint: '星期' },
+    { en: 'Thursday', zh: '星期四', hint: '星期' },
+    { en: 'Friday', zh: '星期五', hint: '星期' },
+    { en: 'Saturday', zh: '星期六', hint: '星期' },
+    { en: 'Sunday', zh: '星期日', hint: '星期' },
+    { en: 'today', zh: '今天', hint: '时间' },
+    { en: 'tomorrow', zh: '明天', hint: '时间' },
+    { en: 'yesterday', zh: '昨天', hint: '时间' },
+    { en: 'morning', zh: '早晨', hint: '时间' },
+    { en: 'afternoon', zh: '下午', hint: '时间' },
+    { en: 'evening', zh: '傍晚', hint: '时间' },
+    { en: 'night', zh: '夜晚', hint: '时间' },
+    { en: 'clock', zh: '时钟', hint: '物品' },
+    { en: 'watch', zh: '手表', hint: '物品' },
+    { en: 'photo', zh: '照片', hint: '物品' },
+    { en: 'telephone', zh: '电话', hint: '通讯' },
+    { en: 'number', zh: '数字', hint: '数学' },
+    { en: 'zero', zh: '零', hint: '数字' },
+    { en: 'one', zh: '一', hint: '数字' },
+    { en: 'two', zh: '二', hint: '数字' },
+    { en: 'three', zh: '三', hint: '数字' },
+    { en: 'four', zh: '四', hint: '数字' },
+    { en: 'five', zh: '五', hint: '数字' },
+    { en: 'six', zh: '六', hint: '数字' },
+    { en: 'seven', zh: '七', hint: '数字' },
+    { en: 'eight', zh: '八', hint: '数字' },
+    { en: 'nine', zh: '九', hint: '数字' },
+    { en: 'ten', zh: '十', hint: '数字' },
+  ],
+  medium: [ // 初一下 — Units 1-8 (2024新版)
+    // === Unit 1: Animal Friends ===
+    { en: 'fox', zh: '狐狸', hint: '动物' },
+    { en: 'giraffe', zh: '长颈鹿', hint: '动物' },
+    { en: 'eagle', zh: '鹰', hint: '动物' },
+    { en: 'wolf', zh: '狼', hint: '动物' },
+    { en: 'penguin', zh: '企鹅', hint: '动物' },
+    { en: 'care', zh: '照顾', hint: '动作' },
+    { en: 'sandwich', zh: '三明治', hint: '食物' },
+    { en: 'snake', zh: '蛇', hint: '动物' },
+    { en: 'scary', zh: '吓人的', hint: '形容词' },
+    { en: 'neck', zh: '脖子', hint: '身体' },
+    { en: 'guess', zh: '猜测', hint: '动作' },
+    { en: 'shark', zh: '鲨鱼', hint: '动物' },
+    { en: 'whale', zh: '鲸', hint: '动物' },
+    { en: 'huge', zh: '巨大的', hint: '形容词' },
+    { en: 'dangerous', zh: '危险的', hint: '形容词' },
+    { en: 'save', zh: '救', hint: '动作' },
+    { en: 'luck', zh: '幸运', hint: '抽象' },
+    { en: 'pick', zh: '捡', hint: '动作' },
+    { en: 'carry', zh: '拿', hint: '动作' },
+    { en: 'playful', zh: '爱玩的', hint: '形容词' },
+    { en: 'culture', zh: '文化', hint: '社会' },
+    { en: 'however', zh: '然而', hint: '连词' },
+    { en: 'danger', zh: '危险', hint: '抽象' },
+    { en: 'forest', zh: '森林', hint: '自然' },
+    { en: 'kill', zh: '杀死', hint: '动作' },
+    { en: 'ivory', zh: '象牙', hint: '材料' },
+    { en: 'friendly', zh: '友好的', hint: '形容词' },
+    { en: 'quite', zh: '相当', hint: '副词' },
+    { en: 'fur', zh: '软毛', hint: '生物' },
+    { en: 'blind', zh: '瞎的', hint: '形容词' },
+    { en: 'hearing', zh: '听力', hint: '感官' },
+    // === Unit 2: No Rules, No Order ===
+    { en: 'rule', zh: '规则', hint: '社会' },
+    { en: 'order', zh: '秩序', hint: '社会' },
+    { en: 'follow', zh: '遵循', hint: '动作' },
+    { en: 'arrive', zh: '到达', hint: '动作' },
+    { en: 'hallway', zh: '走廊', hint: '学校' },
+    { en: 'uniform', zh: '校服', hint: '学校' },
+    { en: 'litter', zh: '乱扔', hint: '动作' },
+    { en: 'polite', zh: '有礼貌的', hint: '形容词' },
+    { en: 'treat', zh: '对待', hint: '动作' },
+    { en: 'respect', zh: '尊敬', hint: '品质' },
+    { en: 'jacket', zh: '夹克衫', hint: '衣物' },
+    { en: 'everything', zh: '每件事', hint: '代词' },
+    { en: 'lend', zh: '借给', hint: '动作' },
+    { en: 'sweet', zh: '糖果', hint: '食物' },
+    { en: 'snack', zh: '点心', hint: '食物' },
+    { en: 'mobile', zh: '可移动的', hint: '科技' },
+    { en: 'queue', zh: '队', hint: '社会' },
+    { en: 'feed', zh: '喂养', hint: '动作' },
+    { en: 'absent', zh: '缺席的', hint: '状态' },
+    { en: 'quietly', zh: '安静地', hint: '副词' },
+    { en: 'belt', zh: '安全带', hint: '物品' },
+    { en: 'noise', zh: '噪声', hint: '感官' },
+    { en: 'unhappy', zh: '不快乐的', hint: '情绪' },
+    { en: 'either', zh: '也', hint: '副词' },
+    { en: 'practise', zh: '练习', hint: '学习' },
+    { en: 'hang', zh: '悬挂', hint: '动作' },
+    { en: 'awful', zh: '糟糕的', hint: '形容词' },
+    { en: 'become', zh: '变成', hint: '动作' },
+    { en: 'better', zh: '较好的', hint: '形容词' },
+    { en: 'person', zh: '人', hint: '身份' },
+    { en: 'focus', zh: '集中', hint: '动作' },
+    { en: 'build', zh: '建造', hint: '动作' },
+    { en: 'spirit', zh: '精神', hint: '抽象' },
+    { en: 'relax', zh: '放松', hint: '动作' },
+    { en: 'advice', zh: '建议', hint: '抽象' },
+    { en: 'understand', zh: '理解', hint: '学习' },
+    { en: 'untidy', zh: '不整洁的', hint: '形容词' },
+    // === Unit 3: Keep Fit ===
+    { en: 'fit', zh: '健康的', hint: '健康' },
+    { en: 'baseball', zh: '棒球', hint: '运动' },
+    { en: 'glove', zh: '手套', hint: '物品' },
+    { en: 'mat', zh: '垫子', hint: '物品' },
+    { en: 'rope', zh: '绳子', hint: '物品' },
+    { en: 'racket', zh: '球拍', hint: '运动' },
+    { en: 'hardly', zh: '几乎不', hint: '副词' },
+    { en: 'ever', zh: '曾经', hint: '副词' },
+    { en: 'once', zh: '一次', hint: '副词' },
+    { en: 'twice', zh: '两次', hint: '副词' },
+    { en: 'maybe', zh: '也许', hint: '副词' },
+    { en: 'perfect', zh: '完美的', hint: '形容词' },
+    { en: 'seldom', zh: '很少', hint: '副词' },
+    { en: 'badminton', zh: '羽毛球', hint: '运动' },
+    { en: 'double', zh: '双打', hint: '运动' },
+    { en: 'sometime', zh: '在某个时候', hint: '时间' },
+    { en: 'volleyball', zh: '排球', hint: '运动' },
+    { en: 'jog', zh: '慢跑', hint: '运动' },
+    { en: 'few', zh: '很少的', hint: '形容词' },
+    { en: 'excuse', zh: '原谅', hint: '动作' },
+    { en: 'belong', zh: '属于', hint: '动作' },
+    { en: 'energy', zh: '精力', hint: '健康' },
+    { en: 'group', zh: '组', hint: '社会' },
+    { en: 'skateboard', zh: '滑板', hint: '运动' },
+    { en: 'encourage', zh: '鼓励', hint: '动作' },
+    { en: 'trick', zh: '技巧', hint: '技能' },
+    { en: 'succeed', zh: '成功', hint: '动作' },
+    { en: 'goal', zh: '目标', hint: '抽象' },
+    { en: 'progress', zh: '进步', hint: '抽象' },
+    { en: 'match', zh: '比赛', hint: '运动' },
+    { en: 'team', zh: '队', hint: '社会' },
+    { en: 'lose', zh: '输掉', hint: '动作' },
+    { en: 'teenager', zh: '青少年', hint: '身份' },
+    // === Unit 4: Eat Well ===
+    { en: 'cabbage', zh: '卷心菜', hint: '食物' },
+    { en: 'mutton', zh: '羊肉', hint: '食物' },
+    { en: 'cookie', zh: '曲奇饼', hint: '食物' },
+    { en: 'onion', zh: '洋葱', hint: '食物' },
+    { en: 'dumpling', zh: '饺子', hint: '食物' },
+    { en: 'coffee', zh: '咖啡', hint: '饮品' },
+    { en: 'bean', zh: '豆', hint: '食物' },
+    { en: 'chip', zh: '炸薯条', hint: '食物' },
+    { en: 'salad', zh: '沙拉', hint: '食物' },
+    { en: 'porridge', zh: '粥', hint: '食物' },
+    { en: 'waiter', zh: '服务员', hint: '职业' },
+    { en: 'taste', zh: '尝', hint: '感官' },
+    { en: 'dish', zh: '一道菜', hint: '食物' },
+    { en: 'choice', zh: '选择', hint: '抽象' },
+    { en: 'meal', zh: '一餐', hint: '食物' },
+    { en: 'pork', zh: '猪肉', hint: '食物' },
+    { en: 'menu', zh: '菜单', hint: '食物' },
+    { en: 'customer', zh: '顾客', hint: '身份' },
+    { en: 'serve', zh: '提供', hint: '动作' },
+    { en: 'instead', zh: '反而', hint: '副词' },
+    { en: 'sugar', zh: '糖', hint: '食物' },
+    { en: 'improve', zh: '改进', hint: '动作' },
+    { en: 'habit', zh: '习惯', hint: '生活' },
+    { en: 'salt', zh: '盐', hint: '食物' },
+    { en: 'fat', zh: '脂肪', hint: '健康' },
+    { en: 'weight', zh: '体重', hint: '健康' },
+    { en: 'hamburger', zh: '汉堡包', hint: '食物' },
+    { en: 'cause', zh: '造成', hint: '动作' },
+    { en: 'heart', zh: '心脏', hint: '身体' },
+    { en: 'balanced', zh: '均衡的', hint: '形容词' },
+    { en: 'sleepy', zh: '困倦的', hint: '状态' },
+    { en: 'poor', zh: '不好的', hint: '形容词' },
+    { en: 'result', zh: '后果', hint: '抽象' },
+    { en: 'article', zh: '文章', hint: '学习' },
+    { en: 'common', zh: '共同的', hint: '形容词' },
+    { en: 'among', zh: '在……中', hint: '介词' },
+    { en: 'soft', zh: '柔和的', hint: '形容词' },
+    { en: 'enough', zh: '足够的', hint: '形容词' },
+    // === Unit 5: Here and Now ===
+    { en: 'ride', zh: '骑', hint: '动作' },
+    { en: 'moment', zh: '时刻', hint: '时间' },
+    { en: 'dragon', zh: '龙', hint: '文化' },
+    { en: 'festival', zh: '节日', hint: '文化' },
+    { en: 'hold', zh: '拿着', hint: '动作' },
+    { en: 'voice', zh: '嗓音', hint: '感官' },
+    { en: 'race', zh: '比赛', hint: '活动' },
+    { en: 'darling', zh: '亲爱的', hint: '称呼' },
+    { en: 'somebody', zh: '某人', hint: '代词' },
+    { en: 'could', zh: '能', hint: '情态动词' },
+    { en: 'message', zh: '消息', hint: '交流' },
+    { en: 'kick', zh: '踢', hint: '动作' },
+    { en: 'online', zh: '在线的', hint: '科技' },
+    { en: 'sight', zh: '风景', hint: '旅游' },
+    { en: 'exam', zh: '考试', hint: '学习' },
+    { en: 'hope', zh: '希望', hint: '情感' },
+    { en: 'forward', zh: '向前', hint: '方向' },
+    { en: 'skate', zh: '滑冰', hint: '运动' },
+    { en: 'happen', zh: '发生', hint: '动作' },
+    { en: 'zone', zh: '地区', hint: '地理' },
+    { en: 'rush', zh: '冲', hint: '动作' },
+    { en: 'shine', zh: '发光', hint: '动作' },
+    { en: 'brightly', zh: '明亮地', hint: '副词' },
+    { en: 'colourful', zh: '色彩鲜艳的', hint: '形容词' },
+    { en: 'slowly', zh: '缓慢地', hint: '副词' },
+    { en: 'such', zh: '这样的', hint: '形容词' },
+    { en: 'painting', zh: '绘画作品', hint: '艺术' },
+    { en: 'market', zh: '市场', hint: '场所' },
+    { en: 'side', zh: '边', hint: '方位' },
+    { en: 'subway', zh: '地铁', hint: '交通' },
+    { en: 'bright', zh: '鲜艳的', hint: '形容词' },
+    { en: 'drop', zh: '落下', hint: '动作' },
+    { en: 'passenger', zh: '乘客', hint: '身份' },
+    { en: 'central', zh: '中心的', hint: '形容词' },
+    { en: 'explain', zh: '解释', hint: '动作' },
+    { en: 'tour', zh: '旅行', hint: '旅游' },
+    { en: 'sunshine', zh: '阳光', hint: '自然' },
+    { en: 'drive', zh: '开车', hint: '动作' },
+    // === Unit 6: Rain or Shine ===
+    { en: 'affect', zh: '影响', hint: '动作' },
+    { en: 'dry', zh: '干的', hint: '形容词' },
+    { en: 'lightning', zh: '闪电', hint: '自然' },
+    { en: 'stormy', zh: '有暴风雨的', hint: '天气' },
+    { en: 'north', zh: '北部', hint: '方向' },
+    { en: 'west', zh: '西部', hint: '方向' },
+    { en: 'south', zh: '南部', hint: '方向' },
+    { en: 'east', zh: '东部', hint: '方向' },
+    { en: 'lucky', zh: '运气好的', hint: '形容词' },
+    { en: 'sunbathe', zh: '沐日光浴', hint: '活动' },
+    { en: 'temperature', zh: '温度', hint: '天气' },
+    { en: 'snowman', zh: '雪人', hint: '物品' },
+    { en: 'heavily', zh: '大量地', hint: '副词' },
+    { en: 'freezing', zh: '极冷的', hint: '温度' },
+    { en: 'tourist', zh: '旅行者', hint: '身份' },
+    { en: 'cloud', zh: '云', hint: '自然' },
+    { en: 'magical', zh: '神奇的', hint: '形容词' },
+    { en: 'rock', zh: '岩石', hint: '自然' },
+    { en: 'rest', zh: '休息', hint: '动作' },
+    { en: 'area', zh: '地区', hint: '场所' },
+    { en: 'although', zh: '虽然', hint: '连词' },
+    { en: 'still', zh: '仍然', hint: '副词' },
+    { en: 'experience', zh: '经历', hint: '抽象' },
+    { en: 'through', zh: '穿过', hint: '介词' },
+    { en: 'glad', zh: '高兴的', hint: '情绪' },
+    { en: 'peak', zh: '山顶', hint: '自然' },
+    { en: 'grey', zh: '灰色的', hint: '颜色' },
+    { en: 'fog', zh: '雾', hint: '自然' },
+    { en: 'ground', zh: '地面', hint: '自然' },
+    { en: 'wet', zh: '湿的', hint: '形容词' },
+    { en: 'tiring', zh: '令人疲倦的', hint: '形容词' },
+    { en: 'seem', zh: '似乎', hint: '动词' },
+    { en: 'sunlight', zh: '阳光', hint: '自然' },
+    { en: 'thought', zh: '想法', hint: '心理' },
+    { en: 'mountain', zh: '山', hint: '自然' },
+    { en: 'storm', zh: '暴风雨', hint: '天气' },
+    { en: 'pour', zh: '倾倒', hint: '动作' },
+    { en: 'wind', zh: '风', hint: '自然' },
+    { en: 'shout', zh: '喊叫', hint: '动作' },
+    // === Unit 7: A Day to Remember ===
+    { en: 'museum', zh: '博物馆', hint: '场所' },
+    { en: 'exhibition', zh: '展览', hint: '活动' },
+    { en: 'direction', zh: '方向', hint: '方位' },
+    { en: 'trip', zh: '旅行', hint: '旅游' },
+    { en: 'plant', zh: '工厂', hint: '场所' },
+    { en: 'remove', zh: '移开', hint: '动作' },
+    { en: 'piece', zh: '片', hint: '量词' },
+    { en: 'waste', zh: '废弃物', hint: '环境' },
+    { en: 'machine', zh: '机器', hint: '科技' },
+    { en: 'germ', zh: '细菌', hint: '生物' },
+    { en: 'step', zh: '步骤', hint: '抽象' },
+    { en: 'realize', zh: '认识到', hint: '心理' },
+    { en: 'inside', zh: '在里面', hint: '方位' },
+    { en: 'process', zh: '过程', hint: '抽象' },
+    { en: 'theatre', zh: '剧场', hint: '场所' },
+    { en: 'factory', zh: '工厂', hint: '场所' },
+    { en: 'terrible', zh: '糟糕的', hint: '形容词' },
+    { en: 'actor', zh: '演员', hint: '职业' },
+    { en: 'gun', zh: '枪', hint: '物品' },
+    { en: 'along', zh: '沿着', hint: '介词' },
+    { en: 'road', zh: '道路', hint: '交通' },
+    { en: 'create', zh: '创造', hint: '动作' },
+    { en: 'record', zh: '记录', hint: '动作' },
+    { en: 'skill', zh: '技能', hint: '能力' },
+    { en: 'explore', zh: '探索', hint: '动作' },
+    { en: 'tent', zh: '帐篷', hint: '物品' },
+    { en: 'cucumber', zh: '黄瓜', hint: '食物' },
+    { en: 'straight', zh: '直接', hint: '副词' },
+    { en: 'fill', zh: '装满', hint: '动作' },
+    { en: 'basket', zh: '篮子', hint: '物品' },
+    { en: 'teach', zh: '教', hint: '动作' },
+    { en: 'branch', zh: '树枝', hint: '植物' },
+    { en: 'leaf', zh: '叶子', hint: '植物' },
+    { en: 'finally', zh: '终于', hint: '副词' },
+    { en: 'grain', zh: '谷物', hint: '食物' },
+    { en: 'fresh', zh: '新鲜的', hint: '形容词' },
+    { en: 'certainly', zh: '肯定地', hint: '副词' },
+    { en: 'diary', zh: '日记', hint: '学习' },
+    { en: 'agree', zh: '赞成', hint: '动作' },
+    // === Unit 8: Once upon a Time ===
+    { en: 'upon', zh: '在……上', hint: '介词' },
+    { en: 'bite', zh: '咬', hint: '动作' },
+    { en: 'net', zh: '网', hint: '物品' },
+    { en: 'hunter', zh: '猎人', hint: '职业' },
+    { en: 'promise', zh: '承诺', hint: '品质' },
+    { en: 'war', zh: '战争', hint: '历史' },
+    { en: 'neighbour', zh: '邻居', hint: '人际关系' },
+    { en: 'wise', zh: '明智的', hint: '形容词' },
+    { en: 'emperor', zh: '皇帝', hint: '身份' },
+    { en: 'lie', zh: '撒谎', hint: '动作' },
+    { en: 'pretend', zh: '假装', hint: '动作' },
+    { en: 'official', zh: '官员', hint: '职业' },
+    { en: 'silly', zh: '愚蠢的', hint: '形容词' },
+    { en: 'decide', zh: '决定', hint: '动作' },
+    { en: 'praise', zh: '赞美', hint: '动作' },
+    { en: 'afraid', zh: '害怕的', hint: '情绪' },
+    { en: 'suddenly', zh: '突然地', hint: '副词' },
+    { en: 'truth', zh: '真相', hint: '抽象' },
+    { en: 'true', zh: '真正的', hint: '形容词' },
+    { en: 'hate', zh: '讨厌', hint: '情感' },
+    { en: 'king', zh: '国王', hint: '身份' },
+    { en: 'artist', zh: '艺术家', hint: '职业' },
+    { en: 'quickly', zh: '快速地', hint: '副词' },
+    { en: 'smile', zh: '微笑', hint: '表情' },
+    { en: 'ugly', zh: '丑陋的', hint: '形容词' },
+    { en: 'duckling', zh: '小鸭子', hint: '动物' },
+    { en: 'real', zh: '真的', hint: '形容词' },
+    { en: 'search', zh: '寻找', hint: '动作' },
+    { en: 'hen', zh: '母鸡', hint: '动物' },
+    { en: 'hopefully', zh: '有希望地', hint: '副词' },
+    { en: 'lay', zh: '下蛋', hint: '动作' },
+    { en: 'swan', zh: '天鹅', hint: '动物' },
+    { en: 'feather', zh: '羽毛', hint: '生物' },
+    { en: 'size', zh: '大小', hint: '抽象' },
+    { en: 'believe', zh: '相信', hint: '心理' },
+    { en: 'fisherman', zh: '渔夫', hint: '职业' },
+    { en: 'genie', zh: '妖怪', hint: '文化' },
+    { en: 'die', zh: '死亡', hint: '动作' },
+    { en: 'someone', zh: '某人', hint: '代词' },
+    { en: 'rich', zh: '富有的', hint: '形容词' },
+    { en: 'powerful', zh: '强大的', hint: '形容词' },
+    { en: 'anyone', zh: '任何人', hint: '代词' },
+    { en: 'himself', zh: '他自己', hint: '代词' },
+  ],
+  hard: [ // 初二上 — Units 1-8 (新版)
+    // === Unit 1: Travel & Vacation ===
+    { en: 'ancient', zh: '古代的', hint: '时间' },
+    { en: 'camp', zh: '露营', hint: '活动' },
+    { en: 'landscape', zh: '风景', hint: '旅游' },
+    { en: 'strange', zh: '奇怪的', hint: '形容词' },
+    { en: 'vacation', zh: '假期', hint: '时间' },
+    { en: 'fantastic', zh: '极好的', hint: '形容词' },
+    { en: 'town', zh: '镇', hint: '场所' },
+    { en: 'breath', zh: '呼吸', hint: '身体' },
+    { en: 'especially', zh: '尤其', hint: '副词' },
+    { en: 'anywhere', zh: '在任何地方', hint: '副词' },
+    { en: 'nothing', zh: '没有东西', hint: '代词' },
+    { en: 'guide', zh: '导游', hint: '职业' },
+    { en: 'hotel', zh: '旅馆', hint: '场所' },
+    { en: 'comfortable', zh: '舒适的', hint: '形容词' },
+    { en: 'ready', zh: '准备好的', hint: '状态' },
+    { en: 'sky', zh: '天空', hint: '自然' },
+    { en: 'bored', zh: '厌倦的', hint: '情绪' },
+    { en: 'towards', zh: '向', hint: '介词' },
+    { en: 'rainbow', zh: '彩虹', hint: '自然' },
+    { en: 'square', zh: '广场', hint: '场所' },
+    { en: 'during', zh: '在……期间', hint: '介词' },
+    { en: 'victory', zh: '胜利', hint: '抽象' },
+    { en: 'fight', zh: '战斗', hint: '动作' },
+    { en: 'against', zh: '反对', hint: '介词' },
+    { en: 'scenery', zh: '风景', hint: '旅游' },
+    { en: 'silk', zh: '丝绸', hint: '材料' },
+    { en: 'scarf', zh: '围巾', hint: '衣物' },
+    { en: 'artwork', zh: '艺术作品', hint: '艺术' },
+    { en: 'tear', zh: '眼泪', hint: '身体' },
+    { en: 'remind', zh: '提醒', hint: '动作' },
+    { en: 'peace', zh: '和平', hint: '社会' },
+    { en: 'easily', zh: '容易地', hint: '副词' },
+    { en: 'forget', zh: '忘记', hint: '动作' },
+    { en: 'noon', zh: '正午', hint: '时间' },
+    { en: 'sick', zh: '生病的', hint: '状态' },
+    { en: 'station', zh: '火车站', hint: '交通' },
+    { en: 'palace', zh: '宫殿', hint: '建筑' },
+    { en: 'tower', zh: '塔', hint: '建筑' },
+    { en: 'might', zh: '可能', hint: '情态动词' },
+    { en: 'budget', zh: '预算', hint: '经济' },
+    { en: 'passport', zh: '护照', hint: '物品' },
+    { en: 'forgetful', zh: '健忘的', hint: '形容词' },
+    { en: 'regular', zh: '平常的', hint: '形容词' },
+    { en: 'countryside', zh: '乡村', hint: '场所' },
+    { en: 'surprised', zh: '惊奇的', hint: '情绪' },
+    { en: 'deer', zh: '鹿', hint: '动物' },
+    { en: 'probably', zh: '很可能', hint: '副词' },
+    // === Unit 2: Home & Living ===
+    { en: 'pack', zh: '打包', hint: '动作' },
+    { en: 'bathroom', zh: '浴室', hint: '家居' },
+    { en: 'sort', zh: '分类', hint: '动作' },
+    { en: 'bedroom', zh: '卧室', hint: '家居' },
+    { en: 'balcony', zh: '阳台', hint: '家居' },
+    { en: 'invite', zh: '邀请', hint: '社交' },
+    { en: 'arrival', zh: '到达', hint: '动作' },
+    { en: 'add', zh: '添加', hint: '动作' },
+    { en: 'biscuit', zh: '饼干', hint: '食物' },
+    { en: 'borrow', zh: '借', hint: '动作' },
+    { en: 'plan', zh: '计划', hint: '抽象' },
+    { en: 'treasure', zh: '宝物', hint: '物品' },
+    { en: 'hunt', zh: '搜寻', hint: '动作' },
+    { en: 'lift', zh: '电梯', hint: '物品' },
+    { en: 'until', zh: '直到', hint: '连词' },
+    { en: 'movie', zh: '电影', hint: '娱乐' },
+    { en: 'dead', zh: '不运行的', hint: '状态' },
+    { en: 'note', zh: '笔记', hint: '学习' },
+    { en: 'community', zh: '社区', hint: '社会' },
+    { en: 'rubbish', zh: '垃圾', hint: '环境' },
+    { en: 'almost', zh: '差不多', hint: '副词' },
+    { en: 'journey', zh: '旅行', hint: '旅游' },
+    { en: 'pull', zh: '拉', hint: '动作' },
+    { en: 'luggage', zh: '行李', hint: '物品' },
+    { en: 'familiar', zh: '熟悉的', hint: '形容词' },
+    { en: 'joke', zh: '笑话', hint: '娱乐' },
+    { en: 'several', zh: '几个', hint: '形容词' },
+    { en: 'nod', zh: '点头', hint: '动作' },
+    { en: 'writer', zh: '作者', hint: '职业' },
+    { en: 'text', zh: '正文', hint: '媒体' },
+    { en: 'describe', zh: '描述', hint: '动作' },
+    { en: 'wherever', zh: '无论哪里', hint: '副词' },
+    { en: 'matter', zh: '要紧', hint: '动作' },
+    { en: 'perhaps', zh: '也许', hint: '副词' },
+    { en: 'plate', zh: '盘子', hint: '物品' },
+    { en: 'smell', zh: '闻到', hint: '感官' },
+    { en: 'joy', zh: '喜悦', hint: '情感' },
+    { en: 'apartment', zh: '公寓', hint: '家居' },
+    { en: 'block', zh: '大楼', hint: '建筑' },
+    { en: 'decorate', zh: '装饰', hint: '动作' },
+    { en: 'cover', zh: '遮盖', hint: '动作' },
+    { en: 'poster', zh: '海报', hint: '物品' },
+    { en: 'scissors', zh: '剪刀', hint: '物品' },
+    { en: 'glue', zh: '胶水', hint: '物品' },
+    // === Unit 3: Compare & Character ===
+    { en: 'compare', zh: '比较', hint: '动作' },
+    { en: 'shy', zh: '害羞的', hint: '性格' },
+    { en: 'lazy', zh: '懒惰的', hint: '性格' },
+    { en: 'outgoing', zh: '外向的', hint: '性格' },
+    { en: 'hard-working', zh: '勤奋的', hint: '性格' },
+    { en: 'perform', zh: '表演', hint: '动作' },
+    { en: 'alone', zh: '独自', hint: '状态' },
+    { en: 'solve', zh: '解决', hint: '动作' },
+    { en: 'congratulation', zh: '祝贺', hint: '社交' },
+    { en: 'interest', zh: '兴趣', hint: '爱好' },
+    { en: 'prize', zh: '奖励', hint: '抽象' },
+    { en: 'attend', zh: '参加', hint: '动作' },
+    { en: 'besides', zh: '除……之外', hint: '介词' },
+    { en: 'spare', zh: '空闲的', hint: '形容词' },
+    { en: 'pleasure', zh: '乐事', hint: '情感' },
+    { en: 'appearance', zh: '外表', hint: '描述' },
+    { en: 'personality', zh: '性格', hint: '描述' },
+    { en: 'serious', zh: '严肃的', hint: '性格' },
+    { en: 'strength', zh: '优势', hint: '能力' },
+    { en: 'slim', zh: '苗条的', hint: '外貌' },
+    { en: 'fact', zh: '事实', hint: '抽象' },
+    { en: 'population', zh: '人口', hint: '社会' },
+    { en: 'average', zh: '平均的', hint: '数学' },
+    { en: 'rainfall', zh: '降雨量', hint: '天气' },
+    { en: 'pleasant', zh: '宜人的', hint: '形容词' },
+    { en: 'difference', zh: '差异', hint: '抽象' },
+    { en: 'alike', zh: '相像的', hint: '形容词' },
+    { en: 'mirror', zh: '镜子', hint: '物品' },
+    { en: 'novel', zh: '小说', hint: '文学' },
+    { en: 'sense', zh: '感觉', hint: '感官' },
+    { en: 'humour', zh: '幽默', hint: '性格' },
+    { en: 'opinion', zh: '看法', hint: '抽象' },
+    { en: 'honest', zh: '诚实的', hint: '性格' },
+    { en: 'direct', zh: '率直的', hint: '性格' },
+    { en: 'similarity', zh: '相似之处', hint: '抽象' },
+    { en: 'friendship', zh: '友谊', hint: '人际关系' },
+    { en: 'character', zh: '人物', hint: '文学' },
+    { en: 'exchange', zh: '交换', hint: '动作' },
+    { en: 'accident', zh: '意外', hint: '事件' },
+    { en: 'expect', zh: '预料', hint: '心理' },
+    { en: 'situation', zh: '情况', hint: '抽象' },
+    { en: 'reach', zh: '伸手', hint: '动作' },
+    { en: 'touch', zh: '触动', hint: '动作' },
+    { en: 'butterfly', zh: '蝴蝶', hint: '生物' },
+    { en: 'wing', zh: '翅膀', hint: '生物' },
+    { en: 'frog', zh: '青蛙', hint: '动物' },
+    { en: 'weigh', zh: '有……重', hint: '动作' },
+    { en: 'province', zh: '省份', hint: '地理' },
+    { en: 'tool', zh: '工具', hint: '物品' },
+    { en: 'actually', zh: '实际上', hint: '副词' },
+    { en: 'appear', zh: '出现', hint: '动作' },
+    { en: 'popular', zh: '广受欢迎的', hint: '形容词' },
+    // === Unit 4: Nature & Ecology ===
+    { en: 'moss', zh: '苔藓', hint: '植物' },
+    { en: 'redwood', zh: '红杉', hint: '植物' },
+    { en: 'cheetah', zh: '猎豹', hint: '动物' },
+    { en: 'bamboo', zh: '竹子', hint: '植物' },
+    { en: 'connect', zh: '关联', hint: '动作' },
+    { en: 'without', zh: '没有', hint: '介词' },
+    { en: 'imagine', zh: '想象', hint: '心理' },
+    { en: 'honey', zh: '蜂蜜', hint: '食物' },
+    { en: 'disappointed', zh: '失望的', hint: '情绪' },
+    { en: 'connection', zh: '联系', hint: '抽象' },
+    { en: 'pollination', zh: '授粉', hint: '生物' },
+    { en: 'pollen', zh: '花粉', hint: '生物' },
+    { en: 'action', zh: '行动', hint: '抽象' },
+    { en: 'percent', zh: '百分之', hint: '数学' },
+    { en: 'planet', zh: '行星', hint: '科学' },
+    { en: 'store', zh: '贮存', hint: '动作' },
+    { en: 'honeycomb', zh: '蜂巢', hint: '生物' },
+    { en: 'communicate', zh: '交流', hint: '动作' },
+    { en: 'ecosystem', zh: '生态系统', hint: '生物' },
+    { en: 'protect', zh: '保护', hint: '动作' },
+    { en: 'importance', zh: '重要性', hint: '抽象' },
+    { en: 'title', zh: '标题', hint: '学习' },
+    { en: 'human', zh: '人', hint: '生物' },
+    { en: 'ant', zh: '蚂蚁', hint: '动物' },
+    { en: 'happiness', zh: '幸福', hint: '情感' },
+    { en: 'disappoint', zh: '使失望', hint: '情感' },
+    { en: 'mushroom', zh: '蘑菇', hint: '植物' },
+    { en: 'ton', zh: '吨', hint: '量词' },
+    { en: 'role', zh: '作用', hint: '抽象' },
+    { en: 'pea', zh: '豌豆', hint: '食物' },
+    { en: 'climate', zh: '气候', hint: '自然' },
+    { en: 'ocean', zh: '海洋', hint: '自然' },
+    { en: 'except', zh: '除……之外', hint: '介词' },
+    { en: 'tiny', zh: '极小的', hint: '形容词' },
+    { en: 'lively', zh: '生机勃勃的', hint: '形容词' },
+    // === Unit 5: Food & Cooking ===
+    { en: 'pepper', zh: '胡椒粉', hint: '食物' },
+    { en: 'mix', zh: '混合', hint: '动作' },
+    { en: 'bake', zh: '烘焙', hint: '动作' },
+    { en: 'oven', zh: '烤箱', hint: '物品' },
+    { en: 'flour', zh: '面粉', hint: '食物' },
+    { en: 'boil', zh: '煮沸', hint: '动作' },
+    { en: 'butter', zh: '黄油', hint: '食物' },
+    { en: 'cheese', zh: '奶酪', hint: '食物' },
+    { en: 'mash', zh: '捣烂', hint: '动作' },
+    { en: 'bowl', zh: '碗', hint: '物品' },
+    { en: 'heat', zh: '加热', hint: '动作' },
+    { en: 'oil', zh: '食用油', hint: '食物' },
+    { en: 'pan', zh: '平底锅', hint: '物品' },
+    { en: 'simple', zh: '简单的', hint: '形容词' },
+    { en: 'ingredient', zh: '食材', hint: '食物' },
+    { en: 'instruction', zh: '用法说明', hint: '学习' },
+    { en: 'mess', zh: '脏乱', hint: '状态' },
+    { en: 'pretty', zh: '漂亮的', hint: '形容词' },
+    { en: 'pancake', zh: '烙饼', hint: '食物' },
+    { en: 'dream', zh: '梦想', hint: '心理' },
+    { en: 'memory', zh: '回忆', hint: '心理' },
+    { en: 'visible', zh: '看得见的', hint: '形容词' },
+    { en: 'pumpkin', zh: '南瓜', hint: '食物' },
+    { en: 'pie', zh: '馅饼', hint: '食物' },
+    { en: 'college', zh: '学院', hint: '学校' },
+    { en: 'host', zh: '主人', hint: '身份' },
+    { en: 'recipe', zh: '食谱', hint: '食物' },
+    { en: 'cream', zh: '奶油', hint: '食物' },
+    { en: 'crust', zh: '酥皮', hint: '食物' },
+    { en: 'mixture', zh: '混合物', hint: '抽象' },
+    { en: 'least', zh: '最少', hint: '副词' },
+    { en: 'secret', zh: '诀窍', hint: '抽象' },
+    { en: 'whenever', zh: '每当', hint: '连词' },
+    { en: 'item', zh: '项目', hint: '抽象' },
+    { en: 'university', zh: '大学', hint: '学校' },
+    { en: 'spoon', zh: '勺', hint: '物品' },
+    { en: 'slice', zh: '薄片', hint: '量词' },
+    { en: 'couple', zh: '夫妻', hint: '人际关系' },
+    { en: 'island', zh: '岛', hint: '地理' },
+    { en: 'separate', zh: '单独的', hint: '形容词' },
+    { en: 'born', zh: '出生', hint: '状态' },
+    // === Unit 6: Plans & Future ===
+    { en: 'able', zh: '能够', hint: '能力' },
+    { en: 'stick', zh: '粘贴', hint: '动作' },
+    { en: 'resolution', zh: '决定', hint: '抽象' },
+    { en: 'achieve', zh: '达到', hint: '动作' },
+    { en: 'physical', zh: '身体的', hint: '健康' },
+    { en: 'health', zh: '健康', hint: '身体' },
+    { en: 'healthily', zh: '健康地', hint: '副词' },
+    { en: 'photography', zh: '摄影', hint: '艺术' },
+    { en: 'confident', zh: '自信的', hint: '性格' },
+    { en: 'organized', zh: '有条理的', hint: '性格' },
+    { en: 'wisely', zh: '聪明地', hint: '副词' },
+    { en: 'possible', zh: '可能的', hint: '形容词' },
+    { en: 'yourself', zh: '你自己', hint: '代词' },
+    { en: 'engineer', zh: '工程师', hint: '职业' },
+    { en: 'fashion', zh: '时尚', hint: '文化' },
+    { en: 'designer', zh: '设计师', hint: '职业' },
+    { en: 'director', zh: '导演', hint: '职业' },
+    { en: 'musician', zh: '音乐家', hint: '职业' },
+    { en: 'essay', zh: '文章', hint: '学习' },
+    { en: 'classic', zh: '经典作品', hint: '文学' },
+    { en: 'literature', zh: '文学', hint: '学科' },
+    { en: 'athlete', zh: '运动员', hint: '职业' },
+    { en: 'photographer', zh: '摄影师', hint: '职业' },
+    { en: 'painter', zh: '画家', hint: '职业' },
+    { en: 'businessman', zh: '企业家', hint: '职业' },
+    { en: 'actress', zh: '女演员', hint: '职业' },
+    { en: 'lawyer', zh: '律师', hint: '职业' },
+    { en: 'law', zh: '法律', hint: '社会' },
+    { en: 'paragraph', zh: '段落', hint: '学习' },
+    { en: 'introduce', zh: '介绍', hint: '社交' },
+    { en: 'meaning', zh: '意义', hint: '抽象' },
+    { en: 'fail', zh: '失败', hint: '动作' },
+    { en: 'ahead', zh: '提前', hint: '时间' },
+    { en: 'design', zh: '设计', hint: '动作' },
+    { en: 'bridge', zh: '桥', hint: '建筑' },
+    { en: 'final', zh: '最后的', hint: '形容词' },
+    { en: 'confidence', zh: '信心', hint: '心理' },
+    { en: 'relationship', zh: '关系', hint: '人际关系' },
+    { en: 'energetic', zh: '精力充沛的', hint: '形容词' },
+    { en: 'bath', zh: '洗澡', hint: '生活' },
+    { en: 'miss', zh: '想念', hint: '情感' },
+    // === Unit 7: Future & Technology ===
+    { en: 'prediction', zh: '预测', hint: '抽象' },
+    { en: 'outer', zh: '外围的', hint: '形容词' },
+    { en: 'worse', zh: '更差的', hint: '形容词' },
+    { en: 'ticket', zh: '票', hint: '物品' },
+    { en: 'positive', zh: '乐观的', hint: '性格' },
+    { en: 'traffic', zh: '交通', hint: '社会' },
+    { en: 'technology', zh: '科技', hint: '科学' },
+    { en: 'video', zh: '视频', hint: '媒体' },
+    { en: 'transport', zh: '交通运输', hint: '社会' },
+    { en: 'system', zh: '系统', hint: '抽象' },
+    { en: 'efficient', zh: '效率高的', hint: '形容词' },
+    { en: 'education', zh: '教育', hint: '社会' },
+    { en: 'length', zh: '时长', hint: '量词' },
+    { en: 'topic', zh: '话题', hint: '交流' },
+    { en: 'partner', zh: '搭档', hint: '人际关系' },
+    { en: 'shall', zh: '将要', hint: '情态动词' },
+    { en: 'winner', zh: '优胜者', hint: '身份' },
+    { en: 'cure', zh: '治愈', hint: '健康' },
+    { en: 'cancer', zh: '癌症', hint: '健康' },
+    { en: 'concert', zh: '音乐会', hint: '娱乐' },
+    { en: 'cash', zh: '现金', hint: '经济' },
+    { en: 'wallet', zh: '钱包', hint: '物品' },
+    { en: 'guest', zh: '客人', hint: '身份' },
+    { en: 'chief', zh: '首席的', hint: '形容词' },
+    { en: 'researcher', zh: '研究者', hint: '职业' },
+    { en: 'everywhere', zh: '到处', hint: '副词' },
+    { en: 'quality', zh: '质量', hint: '抽象' },
+    { en: 'robotics', zh: '机器人学', hint: '科技' },
+    { en: 'industry', zh: '行业', hint: '社会' },
+    { en: 'service', zh: '服务', hint: '社会' },
+    { en: 'disaster', zh: '灾难', hint: '事件' },
+    { en: 'emergency', zh: '紧急情况', hint: '事件' },
+    { en: 'disappear', zh: '消失', hint: '动作' },
+    { en: 'challenging', zh: '挑战性的', hint: '形容词' },
+    { en: 'pilot', zh: '飞行员', hint: '职业' },
+    { en: 'expert', zh: '专家', hint: '职业' },
+    { en: 'replace', zh: '代替', hint: '动作' },
+    { en: 'creativity', zh: '创造力', hint: '能力' },
+    { en: 'emotional', zh: '情感的', hint: '心理' },
+    { en: 'intelligence', zh: '智力', hint: '能力' },
+    { en: 'mention', zh: '提到', hint: '动作' },
+    { en: 'refrigerator', zh: '冰箱', hint: '物品' },
+    { en: 'challenge', zh: '挑战', hint: '抽象' },
+    { en: 'public', zh: '公共的', hint: '形容词' },
+    { en: 'medical', zh: '医学的', hint: '健康' },
+    { en: 'task', zh: '任务', hint: '抽象' },
+    { en: 'depend', zh: '取决于', hint: '动作' },
+    { en: 'accept', zh: '接受', hint: '动作' },
+    { en: 'influence', zh: '影响', hint: '抽象' },
+    { en: 'creative', zh: '创造性的', hint: '形容词' },
+    { en: 'impossible', zh: '不可能的', hint: '形容词' },
+    // === Unit 8: Communication ===
+    { en: 'communication', zh: '交流', hint: '社交' },
+    { en: 'sign', zh: '手势', hint: '交流' },
+    { en: 'speaker', zh: '发言者', hint: '身份' },
+    { en: 'rehearsal', zh: '排练', hint: '活动' },
+    { en: 'local', zh: '当地的', hint: '形容词' },
+    { en: 'professor', zh: '教授', hint: '职业' },
+    { en: 'speech', zh: '演说', hint: '交流' },
+    { en: 'argue', zh: '争论', hint: '动作' },
+    { en: 'prefer', zh: '较喜欢', hint: '情感' },
+    { en: 'calm', zh: '镇静的', hint: '性格' },
+    { en: 'expression', zh: '表达', hint: '交流' },
+    { en: 'chance', zh: '机会', hint: '抽象' },
+    { en: 'meeting', zh: '会面', hint: '社交' },
+    { en: 'difficulty', zh: '困难', hint: '抽象' },
+    { en: 'line', zh: '字行', hint: '学习' },
+    { en: 'detail', zh: '细节', hint: '抽象' },
+    { en: 'reunion', zh: '团聚', hint: '社交' },
+    { en: 'seriously', zh: '严肃地', hint: '副词' },
+    { en: 'training', zh: '训练', hint: '学习' },
+    { en: 'nervous', zh: '紧张的', hint: '情绪' },
+    { en: 'stranger', zh: '陌生人', hint: '身份' },
+    { en: 'tip', zh: '提示', hint: '抽象' },
+    { en: 'carefully', zh: '认真地', hint: '副词' },
+    { en: 'listener', zh: '听者', hint: '身份' },
+    { en: 'point', zh: '观点', hint: '抽象' },
+    { en: 'surely', zh: '想必', hint: '副词' },
+    { en: 'continue', zh: '持续', hint: '动作' },
+    { en: 'impolite', zh: '不礼貌的', hint: '形容词' },
+    { en: 'personal', zh: '个人的', hint: '形容词' },
+    { en: 'sincere', zh: '真诚的', hint: '性格' },
+    { en: 'pay', zh: '付费', hint: '经济' },
+    { en: 'attention', zh: '注意', hint: '心理' },
+    { en: 'offer', zh: '提供', hint: '动作' },
+    { en: 'reasonable', zh: '合理的', hint: '形容词' },
+    { en: 'social', zh: '社会的', hint: '社会' },
+    { en: 'medium', zh: '媒介', hint: '抽象' },
+    { en: 'trust', zh: '信任', hint: '人际关系' },
+    { en: 'misunderstanding', zh: '误解', hint: '抽象' },
+    { en: 'event', zh: '活动', hint: '事件' },
+    { en: 'cost', zh: '费用', hint: '经济' },
+    { en: 'opportunity', zh: '机会', hint: '抽象' },
+    { en: 'benefit', zh: '益处', hint: '抽象' },
+    { en: 'reply', zh: '回答', hint: '交流' },
+    { en: 'honor', zh: '荣幸', hint: '抽象' },
+    { en: 'sentence', zh: '句子', hint: '学习' },
+    { en: 'sincerely', zh: '真诚地', hint: '副词' },
+  ]
+};
+
+// ==================== GAME STATE ====================
+const state = {
+  mode: 'en2zh',       // 'en2zh' | 'zh2en'
+  difficulty: 'easy',   // 'easy' | 'medium' | 'hard'
+  hp: 5,
+  maxHp: 5,
+  score: 0,
+  combo: 0,
+  maxCombo: 0,
+  wave: 1,
+  correctCount: 0,
+  wrongCount: 0,
+  totalTime: 0,
+  timerInterval: null,
+  timeLeft: 0,
+  maxTime: 8,  // seconds per question
+  currentWord: null,
+  currentOptions: [],
+  answered: false,
+  gameOver: false,
+  isBoss: false,
+  enemyHp: 1,
+  enemyMaxHp: 1,
+  wordsUsed: new Set(),
+  wrongWords: [],
+  reinforceQueue: [], // words to re-test this session
+};
+
+// ==================== AUDIO ENGINE ====================
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+
+function playBeep(freq, duration, type = 'square', vol = 0.08) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type; osc.frequency.value = freq;
+  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(); osc.stop(audioCtx.currentTime + duration);
+}
+
+function sfxCorrect() { playBeep(880, 0.08, 'square'); setTimeout(() => playBeep(1100, 0.1, 'square'), 80); }
+function sfxWrong() { playBeep(150, 0.2, 'sawtooth', 0.06); }
+function sfxCombo() { playBeep(660, 0.06, 'square'); setTimeout(() => playBeep(880, 0.06, 'square'), 60); setTimeout(() => playBeep(1100, 0.08, 'square'), 120); }
+function sfxBoss() { playBeep(200, 0.3, 'sawtooth', 0.08); setTimeout(() => playBeep(250, 0.3, 'sawtooth', 0.08), 200); setTimeout(() => playBeep(300, 0.4, 'sawtooth', 0.08), 400); }
+function sfxHit() { playBeep(120, 0.15, 'triangle', 0.06); }
+function sfxGameOver() { playBeep(400, 0.2); setTimeout(() => playBeep(300, 0.2), 200); setTimeout(() => playBeep(200, 0.4), 400); }
+
+// ==================== PARTICLES ====================
+const canvas = document.getElementById('particles');
+const ctx = canvas.getContext('2d');
+let particles = [];
+let ambientParticles = [];
+
+function resizeCanvas() {
+  const app = document.getElementById('app');
+  canvas.width = app.offsetWidth;
+  canvas.height = app.offsetHeight;
+  initAmbientParticles();
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function initAmbientParticles() {
+  ambientParticles = [];
+  const count = Math.floor((canvas.width * canvas.height) / 8000);
+  for (let i = 0; i < count; i++) {
+    ambientParticles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      size: Math.random() * 1.5 + 0.5,
+      speed: Math.random() * 0.3 + 0.1,
+      opacity: Math.random() * 0.4 + 0.1,
+    });
+  }
+}
+initAmbientParticles();
+
+function spawnParticles(x, y, count, color) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 6,
+      vy: (Math.random() - 0.5) * 6 - 2,
+      life: 1,
+      decay: 0.02 + Math.random() * 0.04,
+      size: 2 + Math.random() * 4,
+      color,
+    });
+  }
+}
+
+function updateParticles() {
+  // Update event particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.life -= p.decay;
+    p.vy += 0.05; // gravity
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+  // Update ambient particles
+  for (const p of ambientParticles) {
+    p.y -= p.speed;
+    if (p.y < -10) { p.y = canvas.height + 10; p.x = Math.random() * canvas.width; }
+  }
+}
+
+function drawParticles() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // Draw ambient particles
+  for (const p of ambientParticles) {
+    ctx.globalAlpha = p.opacity;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Draw event particles
+  for (const p of particles) {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function particleLoop() {
+  updateParticles();
+  drawParticles();
+  requestAnimationFrame(particleLoop);
+}
+particleLoop();
+
+// ==================== HELPERS ====================
+function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function getWordPool() {
+  if (state.mode === 'review') {
+    return getWrongBookWords();
+  }
+  return WORD_DATA[state.difficulty] || WORD_DATA.easy;
+}
+
+function pickWord() {
+  const pool = getWordPool();
+
+  // Review mode: pick from wrong book
+  if (state.mode === 'review') {
+    if (pool.length === 0) return null; // no words to review
+    const unused = pool.filter(w => !state.wordsUsed.has(w.en));
+    if (unused.length === 0) {
+      state.wordsUsed.clear();
+      return pool[randInt(0, pool.length - 1)];
+    }
+    return unused[randInt(0, unused.length - 1)];
+  }
+
+  // Normal mode: 30% chance to reinforce a wrong word
+  if (state.reinforceQueue.length > 0 && Math.random() < 0.3) {
+    const word = state.reinforceQueue.shift();
+    if (!state.wordsUsed.has(word.en)) {
+      state.wordsUsed.add(word.en);
+      return word;
+    } else {
+      // Already used this round, put back at end
+      state.reinforceQueue.push(word);
+    }
+  }
+
+  const unused = pool.filter(w => !state.wordsUsed.has(w.en));
+  if (unused.length < 4) {
+    state.wordsUsed.clear();
+    return pickWord();
+  }
+  return unused[randInt(0, unused.length - 1)];
+}
+
+function generateOptions(correctWord) {
+  const pool = getWordPool();
+  let wrongs = pool.filter(w => w.en !== correctWord.en);
+
+  // For review mode with small pool, pull distractors from all word banks
+  if (wrongs.length < 3) {
+    const allWords = [...WORD_DATA.easy, ...WORD_DATA.medium, ...WORD_DATA.hard];
+    const extraWrongs = allWords.filter(w => w.en !== correctWord.en && !wrongs.find(pw => pw.en === w.en));
+    wrongs = [...wrongs, ...shuffle(extraWrongs).slice(0, 3 - wrongs.length)];
+  }
+
+  const shuffledWrongs = shuffle(wrongs).slice(0, 3);
+  const options = shuffle([correctWord, ...shuffledWrongs]);
+  return options;
+}
+
+// ==================== UI RENDER ====================
+function renderHearts() {
+  const container = document.getElementById('hp-hearts');
+  let html = '';
+  for (let i = 0; i < state.maxHp; i++) {
+    html += `<span class="heart${i >= state.hp ? ' lost' : ''}">❤️</span>`;
+  }
+  container.innerHTML = html;
+}
+
+function renderHUD() {
+  document.getElementById('hud-score').textContent = state.score;
+  document.getElementById('hud-combo').textContent = 'x' + state.combo;
+  document.getElementById('hud-wave').textContent = state.wave;
+  renderHearts();
+}
+
+function showComboPop(text) {
+  const el = document.getElementById('combo-pop');
+  el.textContent = text;
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+}
+
+function showBossAlert() {
+  const el = document.getElementById('boss-alert');
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+}
+
+function screenShake() {
+  const app = document.getElementById('app');
+  app.classList.remove('screen-shake');
+  void app.offsetWidth;
+  app.classList.add('screen-shake');
+}
+
+// ==================== ENEMY SYSTEM ====================
+const ENEMIES = {
+  normal: [
+    { sprite: '👾', name: '小单词怪' },
+    { sprite: '👻', name: '拼写幽灵' },
+    { sprite: '🐍', name: '字母蛇' },
+    { sprite: '🦇', name: '语法蝙蝠' },
+    { sprite: '🐺', name: '单词狼' },
+  ],
+  boss: [
+    { sprite: '🐉', name: '单词巨龙' },
+    { sprite: '👹', name: '词霸魔王' },
+    { sprite: '🦖', name: '霸王龙' },
+  ]
+};
+
+function setEnemy(isBoss) {
+  const pool = isBoss ? ENEMIES.boss : ENEMIES.normal;
+  const enemy = pool[randInt(0, pool.length - 1)];
+  document.getElementById('enemy-sprite').textContent = enemy.sprite;
+  document.getElementById('enemy-name').textContent = enemy.name;
+
+  if (isBoss) {
+    state.enemyMaxHp = 3 + Math.floor(state.wave / 5);
+    state.enemyHp = state.enemyMaxHp;
+    document.getElementById('enemy-sprite').style.fontSize = '100px';
+  } else {
+    state.enemyMaxHp = 1;
+    state.enemyHp = 1;
+    document.getElementById('enemy-sprite').style.fontSize = '80px';
+  }
+  document.getElementById('enemy-hp-fill').style.width = '100%';
+}
+
+function damageEnemy() {
+  state.enemyHp--;
+  const pct = (state.enemyHp / state.enemyMaxHp) * 100;
+  document.getElementById('enemy-hp-fill').style.width = pct + '%';
+
+  // Hit animation
+  const sprite = document.getElementById('enemy-sprite');
+  sprite.classList.remove('hit');
+  void sprite.offsetWidth;
+  sprite.classList.add('hit');
+
+  // Spawn particles at enemy
+  const rect = sprite.getBoundingClientRect();
+  const appRect = document.getElementById('app').getBoundingClientRect();
+  spawnParticles(
+    rect.left - appRect.left + rect.width / 2,
+    rect.top - appRect.top + rect.height / 2,
+    15, '#ffd93d'
+  );
+}
+
+// ==================== GAME LOGIC ====================
+function showQuestion() {
+  const word = pickWord();
+  if (!word) {
+    // No words to review
+    endGame();
+    return;
+  }
+  state.currentWord = word;
+  state.wordsUsed.add(word.en);
+  state.answered = false;
+
+  const options = generateOptions(word);
+  state.currentOptions = options;
+
+  // Display word based on mode
+  if (state.mode === 'en2zh' || state.mode === 'review') {
+    document.getElementById('word-display').textContent = word.en;
+    const reviewInfo = state.mode === 'review' && word.wrong ? `⚠️ 曾答错 ${word.wrong} 次` : '';
+    document.getElementById('word-hint').textContent = reviewInfo || (word.hint ? `💡 ${word.hint}` : '');
+    document.getElementById('phonetic-display').textContent = '';
+  } else {
+    document.getElementById('word-display').textContent = word.zh;
+    document.getElementById('word-hint').textContent = word.hint ? `💡 ${word.hint}` : '';
+    document.getElementById('phonetic-display').textContent = word.en.length > 0 ? `(${word.en.length} 个字母)` : '';
+  }
+
+  // Render option buttons
+  const optsArea = document.getElementById('options-area');
+  optsArea.innerHTML = '';
+  options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'opt-btn';
+    btn.textContent = (state.mode === 'en2zh' || state.mode === 'review') ? opt.zh : opt.en;
+    btn.addEventListener('click', () => onAnswer(opt, i, btn));
+    optsArea.appendChild(btn);
+  });
+
+  // Start timer (skip for review mode — no rush)
+  if (state.mode === 'review') {
+    document.getElementById('timer-bar').style.width = '100%';
+    document.getElementById('timer-bar').classList.remove('danger');
+    clearInterval(state.timerInterval);
+  } else {
+    state.timeLeft = state.maxTime;
+    document.getElementById('timer-bar').style.width = '100%';
+    document.getElementById('timer-bar').classList.remove('danger');
+
+    clearInterval(state.timerInterval);
+    state.timerInterval = setInterval(() => {
+      state.timeLeft -= 0.1;
+      const pct = (state.timeLeft / state.maxTime) * 100;
+      const timerBar = document.getElementById('timer-bar');
+      timerBar.style.width = Math.max(0, pct) + '%';
+      if (state.timeLeft < 2) timerBar.classList.add('danger');
+
+      if (state.timeLeft <= 0 && !state.answered) {
+        onTimeout();
+      }
+    }, 100);
+  }
+}
+
+function onAnswer(selected, index, btnElement) {
+  if (state.answered || state.gameOver) return;
+  state.answered = true;
+  clearInterval(state.timerInterval);
+  initAudio();
+
+  const correct = state.currentWord;
+  const isCorrect = selected.en === correct.en;
+
+  // Highlight correct answer
+  const buttons = document.querySelectorAll('#options-area .opt-btn');
+  buttons.forEach(b => {
+    const optText = b.textContent;
+    const correctText = state.mode === 'en2zh' ? correct.zh : correct.en;
+    if (optText === correctText) b.classList.add('correct');
+  });
+
+  // Calc time bonus
+  const timeBonus = Math.floor(state.timeLeft * 10);
+
+  if (isCorrect) {
+    btnElement.classList.add('correct');
+    state.correctCount++;
+    state.combo++;
+    if (state.combo > state.maxCombo) state.maxCombo = state.combo;
+
+    // Wrong book: mark progress (review mode)
+    if (state.mode === 'review') {
+      markCorrectInWrongBook(correct.en);
+    }
+
+    // Remove from reinforce queue
+    state.reinforceQueue = state.reinforceQueue.filter(w => w.en !== correct.en);
+
+    // Score: base 100 + time bonus + combo multiplier
+    const comboMult = Math.min(state.combo, 10);
+    const points = (100 + timeBonus) * comboMult;
+    state.score += points;
+
+    sfxCorrect();
+
+    // Combo milestones
+    if (state.combo === 5) { showComboPop('🔥 5连击!'); sfxCombo(); }
+    if (state.combo === 10) { showComboPop('⚡ 10连击!'); sfxCombo(); }
+    if (state.combo === 20) { showComboPop('💥 20连击!!'); sfxCombo(); }
+    if (state.combo % 10 === 0 && state.combo > 0) { showComboPop(`✨ ${state.combo}连击!`); }
+
+    damageEnemy();
+
+    // Check if enemy is dead
+    if (state.enemyHp <= 0) {
+      onEnemyDefeated();
+    } else {
+      // Next question after short delay
+      setTimeout(() => showQuestion(), 600);
+    }
+  } else {
+    btnElement.classList.add('wrong');
+    state.combo = 0;
+    state.wrongCount++;
+    state.hp--;
+    state.wrongWords.push({ en: correct.en, zh: correct.zh });
+
+    // Save to persistent wrong book
+    addToWrongBook(correct.en, correct.zh);
+
+    // Add to reinforce queue (re-test later this session)
+    if (!state.reinforceQueue.find(w => w.en === correct.en)) {
+      state.reinforceQueue.push(correct);
+    }
+
+    sfxWrong(); sfxHit();
+    screenShake();
+
+    // Spawn red particles
+    const rect = btnElement.getBoundingClientRect();
+    const appRect = document.getElementById('app').getBoundingClientRect();
+    spawnParticles(rect.left - appRect.left + rect.width / 2, rect.top - appRect.top + rect.height / 2, 8, '#ff6b6b');
+
+    if (state.hp <= 0) {
+      setTimeout(() => endGame(), 500);
+    } else {
+      setTimeout(() => showQuestion(), 800);
+    }
+  }
+
+  renderHUD();
+}
+
+function onTimeout() {
+  if (state.answered || state.gameOver) return;
+  state.answered = true;
+  clearInterval(state.timerInterval);
+  initAudio();
+
+  state.combo = 0;
+  state.wrongCount++;
+  state.hp--;
+  state.wrongWords.push({ en: state.currentWord.en, zh: state.currentWord.zh });
+
+  // Save to persistent wrong book
+  addToWrongBook(state.currentWord.en, state.currentWord.zh);
+
+  // Add to reinforce queue
+  if (!state.reinforceQueue.find(w => w.en === state.currentWord.en)) {
+    state.reinforceQueue.push(state.currentWord);
+  }
+
+  // Highlight correct answer
+  const buttons = document.querySelectorAll('#options-area .opt-btn');
+  buttons.forEach(b => {
+    const correctText = state.mode === 'en2zh' ? state.currentWord.zh : state.currentWord.en;
+    if (b.textContent === correctText) b.classList.add('correct');
+  });
+
+  sfxWrong(); sfxHit();
+  screenShake();
+
+  if (state.hp <= 0) {
+    setTimeout(() => endGame(), 500);
+  } else {
+    setTimeout(() => showQuestion(), 800);
+  }
+
+  renderHUD();
+}
+
+function onEnemyDefeated() {
+  state.wave++;
+
+  // Boss every 5 waves
+  const isBoss = state.wave % 5 === 0;
+  state.isBoss = isBoss;
+
+  if (isBoss) {
+    showBossAlert();
+    sfxBoss();
+    // Bigger particle burst
+    const sprite = document.getElementById('enemy-sprite');
+    const rect = sprite.getBoundingClientRect();
+    const appRect = document.getElementById('app').getBoundingClientRect();
+    spawnParticles(rect.left - appRect.left + rect.width / 2, rect.top - appRect.top + rect.height / 2, 30, '#ff6b6b');
+  }
+
+  setEnemy(isBoss);
+  renderHUD();
+
+  setTimeout(() => showQuestion(), isBoss ? 1200 : 400);
+}
+
+function startGame() {
+  initAudio();
+  clearInterval(state.timerInterval); // safety clear of any lingering timer
+
+  // Reset state
+  state.hp = state.maxHp;
+  state.score = 0;
+  state.combo = 0;
+  state.maxCombo = 0;
+  state.wave = 1;
+  state.correctCount = 0;
+  state.wrongCount = 0;
+  state.gameOver = false;
+  state.wordsUsed.clear();
+  state.wrongWords = [];
+  state.reinforceQueue = [];
+  state.answered = false;
+  state.isBoss = false;
+  state.enemyHp = 1;
+  state.enemyMaxHp = 1;
+
+  // Set timer based on mode and difficulty
+  if (state.mode === 'review') {
+    state.maxTime = 10; // more time for review mode
+    // Check if there are words to review
+    if (getWrongBookCount() === 0) {
+      alert('🎉 错题本是空的！先去普通模式答错几个词吧。');
+      return;
+    }
+  } else if (state.difficulty === 'easy') {
+    state.maxTime = 8;
+  } else if (state.difficulty === 'medium') {
+    state.maxTime = 7;
+  } else {
+    state.maxTime = 6;
+  }
+
+  // Switch screens
+  document.getElementById('menu-screen').classList.add('hidden');
+  document.getElementById('game-screen').classList.remove('hidden');
+
+  // Init game
+  setEnemy(false);
+  renderHUD();
+  showQuestion();
+
+  // Attempt to resume audio context on iOS
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function endGame() {
+  state.gameOver = true;
+  clearInterval(state.timerInterval);
+  sfxGameOver();
+
+  // Save stats
+  saveStats(state.score, state.correctCount, state.maxCombo);
+
+  // Show result
+  showResult();
+}
+
+function showResult() {
+  const app = document.getElementById('app');
+
+  // Build wrong words review HTML
+  let reviewHtml = '';
+  if (state.wrongWords.length > 0) {
+    const uniqueWrong = [];
+    const seen = new Set();
+    for (const w of state.wrongWords) {
+      if (!seen.has(w.en)) { uniqueWrong.push(w); seen.add(w.en); }
+    }
+    reviewHtml = '<div class="word-review">';
+    reviewHtml += '<div style="font-size:12px;color:#888;margin-bottom:6px;">📝 需要复习的单词：</div>';
+    uniqueWrong.forEach(w => {
+      reviewHtml += `<div class="wr-item wrong-word"><span class="wr-en">${w.en}</span><span class="wr-zh">${w.zh}</span></div>`;
+    });
+    reviewHtml += '</div>';
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'result-overlay';
+  overlay.innerHTML = `
+    <div class="result-card">
+      <h2>${state.hp <= 0 ? '💔 战斗结束' : '🎉 太棒了!'}</h2>
+      <div class="big-num">${state.score}</div>
+      <div style="color:#888;margin-bottom:8px;">总分</div>
+      <div class="stat-grid">
+        <div class="stat-item"><div class="stat-val">${state.correctCount}</div><div class="stat-lbl">答对</div></div>
+        <div class="stat-item"><div class="stat-val">${state.wrongCount}</div><div class="stat-lbl">答错</div></div>
+        <div class="stat-item"><div class="stat-val">x${state.maxCombo}</div><div class="stat-lbl">最高连击</div></div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-item"><div class="stat-val">${state.wave}</div><div class="stat-lbl">到达关卡</div></div>
+        <div class="stat-item"><div class="stat-val">${Math.round(state.correctCount / Math.max(1, state.correctCount + state.wrongCount) * 100)}%</div><div class="stat-lbl">正确率</div></div>
+        <div class="stat-item"><div class="stat-val">${state.hp > 0 ? '✅' : '❌'}</div><div class="stat-lbl">存活</div></div>
+      </div>
+      ${reviewHtml}
+      <div class="btn-row">
+        <button class="btn-retry" onclick="closeResult(); startGame();">🔄 再来一局</button>
+        <button class="btn-home" onclick="closeResult(); goHome();">🏠 返回</button>
+      </div>
+    </div>
+  `;
+  overlay.id = 'result-overlay';
+  app.appendChild(overlay);
+
+  // Update menu stats
+  updateMenuStats();
+}
+
+function closeResult() {
+  const overlay = document.getElementById('result-overlay');
+  if (overlay) overlay.remove();
+}
+
+function goHome() {
+  clearInterval(state.timerInterval);
+  state.gameOver = true;
+  document.getElementById('game-screen').classList.add('hidden');
+  document.getElementById('menu-screen').classList.remove('hidden');
+  updateMenuStats();
+}
+
+// ==================== PERSISTENCE ====================
+function saveStats(score, correct, maxCombo) {
+  try {
+    const data = JSON.parse(localStorage.getItem('wordslayer_stats') || '{}');
+    const key = `${state.difficulty}_${state.mode}`;
+    if (!data[key] || score > data[key].bestScore) {
+      data[key] = { bestScore: score, bestCombo: maxCombo, totalCorrect: (data[key]?.totalCorrect || 0) + correct };
+    } else {
+      data[key].totalCorrect = (data[key]?.totalCorrect || 0) + correct;
+      if (maxCombo > (data[key]?.bestCombo || 0)) data[key].bestCombo = maxCombo;
+    }
+    localStorage.setItem('wordslayer_stats', JSON.stringify(data));
+  } catch(e) {}
+}
+
+// === Wrong Book (persistent error tracking) ===
+function loadWrongBook() {
+  try {
+    return JSON.parse(localStorage.getItem('wordslayer_wrongbook') || '{}');
+  } catch(e) { return {}; }
+}
+
+function saveWrongBook(book) {
+  try {
+    localStorage.setItem('wordslayer_wrongbook', JSON.stringify(book));
+  } catch(e) {}
+}
+
+function addToWrongBook(en, zh) {
+  const book = loadWrongBook();
+  if (!book[en]) {
+    book[en] = { zh, wrong: 0, correct: 0 };
+  }
+  book[en].wrong++;
+  saveWrongBook(book);
+}
+
+function markCorrectInWrongBook(en) {
+  const book = loadWrongBook();
+  if (!book[en]) return;
+  book[en].correct++;
+  if (book[en].correct >= 2) {
+    delete book[en]; // mastered!
+  }
+  saveWrongBook(book);
+}
+
+function getWrongBookWords() {
+  const book = loadWrongBook();
+  return Object.entries(book).map(([en, data]) => ({ en, zh: data.zh, wrong: data.wrong, correct: data.correct }));
+}
+
+function getWrongBookCount() {
+  return Object.keys(loadWrongBook()).length;
+}
+
+function clearWrongBook() {
+  saveWrongBook({});
+}
+
+function updateMenuStats() {
+  try {
+    const data = JSON.parse(localStorage.getItem('wordslayer_stats') || '{}');
+    const key = `${state.difficulty}_${state.mode}`;
+    document.getElementById('menu-best').textContent = (data[key]?.bestScore || 0);
+    document.getElementById('menu-mastered').textContent = (data[key]?.totalCorrect || 0);
+  } catch(e) {}
+  // Update wrong book count
+  const count = getWrongBookCount();
+  document.getElementById('menu-wrong-count').textContent = count;
+  const reviewCard = document.getElementById('review-card');
+  if (reviewCard) {
+    reviewCard.style.opacity = count === 0 ? '0.4' : '1';
+    reviewCard.querySelector('.menu-card-desc').textContent = count > 0 ? `${count} 个待复习` : '暂无错题';
+  }
+}
+
+// ==================== MENU INTERACTION ====================
+document.querySelectorAll('#mode-cards .menu-card').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('#mode-cards .menu-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    state.mode = card.dataset.mode;
+    // Hide difficulty when review mode is selected
+    const diffSection = document.getElementById('diff-section');
+    if (state.mode === 'review') {
+      diffSection.style.display = 'none';
+      document.getElementById('btn-start').textContent = '📝 开始复习';
+    } else {
+      diffSection.style.display = '';
+      document.getElementById('btn-start').textContent = '⚔️ 开始战斗';
+    }
+    updateMenuStats();
+  });
+});
+
+document.querySelectorAll('#diff-cards .menu-card').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('#diff-cards .menu-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    state.difficulty = card.dataset.diff;
+    updateMenuStats();
+  });
+});
+
+function clearWrongBookAndUpdate() {
+  if (confirm('确定要清空所有错题吗？这个操作不能撤销。')) {
+    clearWrongBook();
+    updateMenuStats();
+  }
+}
+
+// On load
+updateMenuStats();
+
+// Prevent double-tap zoom on game buttons
+document.addEventListener('dblclick', e => {
+  if (e.target.closest('.opt-btn, .btn-start, .btn-retry, .btn-home, .menu-card')) {
+    e.preventDefault();
+  }
+}, { passive: false });
+
+// Resume audio context on first touch (iOS)
+document.addEventListener('touchstart', () => {
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}, { once: true });
+
+console.log('⚔️ 单词杀手 Word Slayer - Ready!');
+console.log('📚 词库: 初一上/初一下/初二上');
+console.log('🎮 模式: 看英选中 / 看中选英');
+console.log('💡 玩法: 选对攻击怪物，连击翻倍分数，每5关打Boss!');
+</script>
+</body>
+</html>
