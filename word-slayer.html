@@ -1358,22 +1358,44 @@ function sfxHit() { playBeep(120, 0.15, 'triangle', 0.06); }
 function sfxGameOver() { playBeep(400, 0.2); setTimeout(() => playBeep(300, 0.2), 200); setTimeout(() => playBeep(200, 0.4), 400); }
 
 // ==================== SPEECH ====================
+// Preload voices (called on first user interaction)
+let voicesLoaded = false;
+function loadVoices() {
+  if (!window.speechSynthesis || voicesLoaded) return;
+  voicesLoaded = true;
+  // Force voice loading on iOS
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length === 0) {
+    // iOS sometimes loads voices async
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.speechSynthesis.getVoices();
+    };
+  }
+  // Warm up the speech engine with a silent utterance
+  const wu = new SpeechSynthesisUtterance('');
+  wu.volume = 0;
+  window.speechSynthesis.speak(wu);
+}
+
 function speakWord(en) {
   if (!window.speechSynthesis) return;
-  // Cancel any ongoing speech
+  loadVoices();
+  // iOS bug fix: small delay after cancel before speaking again
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(en);
-  utterance.lang = 'en-US';
-  utterance.rate = 0.85;    // slightly slower for learners
-  utterance.pitch = 1.0;
-  utterance.volume = 0.8;
-  // Try to pick a good English voice
-  const voices = window.speechSynthesis.getVoices();
-  const enVoice = voices.find(v => v.lang.startsWith('en-US'))
-    || voices.find(v => v.lang.startsWith('en'))
-    || voices[0];
-  if (enVoice) utterance.voice = enVoice;
-  window.speechSynthesis.speak(utterance);
+  setTimeout(() => {
+    const utterance = new SpeechSynthesisUtterance(en);
+    utterance.lang = 'en-US';
+    utterance.rate = 0.85;    // slightly slower for learners
+    utterance.pitch = 1.0;
+    utterance.volume = 0.8;
+    // Try to pick a good English voice
+    const voices = window.speechSynthesis.getVoices();
+    const enVoice = voices.find(v => v.lang.startsWith('en-US'))
+      || voices.find(v => v.lang.startsWith('en'))
+      || voices[0];
+    if (enVoice) utterance.voice = enVoice;
+    window.speechSynthesis.speak(utterance);
+  }, 120); // 120ms delay fixes iOS cancel-then-speak bug
 }
 
 // ==================== PARTICLES ====================
