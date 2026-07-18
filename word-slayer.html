@@ -81,6 +81,22 @@ body {
 .stats-row { display: flex; gap: 16px; margin-top: 20px; font-size: 12px; color: #666; }
 .stats-row span { text-align: center; }
 
+/* ===== Version & Changelog ===== */
+.version-wrap { margin-top: 24px; text-align: center; }
+.version-badge {
+  display: inline-block; font-size: 11px; color: #555;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px; padding: 4px 14px; cursor: pointer;
+  transition: all 0.2s;
+}
+.version-badge:active { background: rgba(255,255,255,0.08); color: #888; }
+.changelog {
+  margin-top: 10px; font-size: 11px; color: #555; line-height: 1.8;
+  max-height: 0; overflow: hidden; transition: max-height 0.3s ease, margin 0.3s;
+}
+.changelog.open { max-height: 200px; margin-top: 12px; }
+.changelog .cl-item { display: block; }
+
 /* ===== Game Screen ===== */
 #game-screen { z-index: 10; padding: 0; justify-content: flex-start; }
 
@@ -327,6 +343,16 @@ body {
       <button class="btn-clear-wrong" id="btn-clear-wrong" onclick="clearWrongBookAndUpdate()">
         🗑 清空错题本
       </button>
+    </div>
+    <div class="version-wrap">
+      <div class="version-badge" onclick="this.nextElementSibling.classList.toggle('open')">
+        v0.3 📋
+      </div>
+      <div class="changelog">
+        <span class="cl-item">v0.3 · 沪教牛津版词库（广州教材）</span>
+        <span class="cl-item">v0.2 · 英文单词朗读 + 修复 iOS 语音</span>
+        <span class="cl-item">v0.1 · 单词杀手 Word Slayer 首发</span>
+      </div>
     </div>
   </div>
 
